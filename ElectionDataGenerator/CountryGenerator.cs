@@ -267,5 +267,35 @@ namespace ElectionDataGenerator
                 }
         }
         #endregion terrain outline
+
+        public List<PointF> PlaceDistricts(int numDistricts)
+        {
+            var districts = new List<PointF>();
+
+            int xStart = Width / 10, yStart = Height / 10;
+            int xRange = Width * 8 / 10, yRange = Height * 8 / 10;
+
+            for (int i=0; i<numDistricts; i++)
+            {
+                PointF test;
+                bool inAny = false;
+
+                do
+                {
+                    test = new PointF(Random.Next(xRange) + xStart, Random.Next(yRange) + yStart);
+                    
+                    foreach (var landmass in Landmasses)
+                        if (landmass.IsVisible(test))
+                        {
+                            inAny = true;
+                            break;
+                        }
+                } while (!inAny);
+
+                districts.Add(test);
+            }
+
+            return districts;
+        }
     }
 }

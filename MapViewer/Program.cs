@@ -36,9 +36,17 @@ namespace MapViewer
 
             var landMasses = generator.GenerateTerrain(reverseLoopHandling);
 
+            var districts = generator.PlaceDistricts(100);
+
             brush = new SolidBrush(Color.Green);
             foreach (var island in landMasses)
                 g.FillPath(brush, island);
+
+            brush = new SolidBrush(Color.Red);
+            foreach (var district in districts)
+            {
+                g.FillEllipse(brush, district.X - 1, district.Y - 1, 2, 2);
+            }
 
             image.Save($"generated_{(reverseLoopHandling ? "normal" : "reverse")}.png", ImageFormat.Png);
         }
