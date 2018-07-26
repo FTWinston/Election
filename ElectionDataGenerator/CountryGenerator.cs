@@ -1,5 +1,6 @@
 ﻿using ElectionData.Geography;
 using System;
+using System.Drawing;
 
 namespace ElectionDataGenerator
 {
@@ -47,6 +48,33 @@ namespace ElectionDataGenerator
         public int Width { get; }
         public int Height { get; }
 
+        public static bool LineSegmentsCross(PointF line1start, PointF line1end, PointF line2start, PointF line2end)
+        {
+            PointF CmP = new PointF(line2start.X - line1start.X, line2start.Y - line1start.Y);
+            PointF r = new PointF(line1end.X - line1start.X, line1end.Y - line1start.Y);
+            PointF s = new PointF(line2end.X - line2start.X, line2end.Y - line2start.Y);
+
+            float CmPxr = CmP.X * r.Y - CmP.Y * r.X;
+            float CmPxs = CmP.X * s.Y - CmP.Y * s.X;
+            float rxs = r.X * s.Y - r.Y * s.X;
+
+            if (CmPxr == 0f)
+            {
+                // Lines are collinear, and so intersect if they have any overlap
+                return ((line2start.X - line1start.X < 0f) != (line2start.X - line1end.X < 0f))
+                    || ((line2start.Y - line1start.Y < 0f) != (line2start.Y - line1end.Y < 0f));
+            }
+
+            if (rxs == 0f)
+                return false; // Lines are parallel.
+
+            float rxsr = 1f / rxs;
+            float t = CmPxs * rxsr;
+            float u = CmPxr * rxsr;
+
+            return (t >= 0f) && (t <= 1f) && (u >= 0f) && (u <= 1f);
+        }
+
         public float CenterX { get; }
         public float CenterY { get; }
         public float EllipseWidth { get; }
@@ -70,14 +98,6 @@ namespace ElectionDataGenerator
 
             TerrainNoiseX = new PerlinNoise(Random.Next(), 4);
             TerrainNoiseY = new PerlinNoise(Random.Next(), 4);
-        }
-
-        public bool IsPointWithinEllipse(int x, int y)
-        {
-            return
-            (x - CenterX) * (x - CenterX) / (EllipseWidth * EllipseWidth * 0.25f) +
-            (y - CenterY) * (y - CenterY) / (EllipseHeight * EllipseHeight * 0.25f)
-            <= 1f;
         }
 
         public float GetTerrainNoiseX(float x, float y)
