@@ -15,26 +15,18 @@ namespace MapViewer
             Random r = new Random();
             int seed = r.Next();
 
-            // 0.001 to 0.01 seems to work best for noise scale, 100 works well for noise magnitude
-            
-            GenerateImage(seed, LoopMode.Ignore);
-            GenerateImage(seed, LoopMode.Chop);
-            GenerateImage(seed, LoopMode.Reverse);
+            GenerateImage(seed, false);
+            GenerateImage(seed, true);
             Console.ReadKey();
         }
 
-        enum LoopMode
+        private static void GenerateImage(int seed, bool reverseLoopHandling)
         {
-            Ignore,
-            Chop,
-            Reverse,
-        }
-
-        private static void GenerateImage(int seed, LoopMode loopMode)
-        {
-            Console.WriteLine($"Generating with seed {seed} - will {loopMode} any loops");
+            Console.WriteLine($"Generating with seed {seed} - will {(reverseLoopHandling ? "reverse" : "process")} any loops");
 
             var generator = new CountryGenerator(seed);
+
+            // 0.001 to 0.01 seems to work best for noise frequency, 100 works well for noise amplitude
             float frequency = 0.005f;
             float amplitude = Math.Min(generator.Width, generator.Height) / 2;
 
@@ -68,64 +60,65 @@ namespace MapViewer
 
                 var nextPoint = new PointF(placeX, placeY);
 
-                if (loopMode != LoopMode.Ignore)
+                // See if prevPoint - nextPoint crosses ANY of the previous lines. If it does, we have a loop / dangler.
+                // Ignore the first line and the most recent line, cos we may well touch those.
+
+                for (int i = mainland.Count - 3; i > 1; i--)
                 {
-                    // See if prevPoint - nextPoint crosses ANY of the previous lines. If it does, we have a loop / dangler.
-                    // Ignore the first line and the most recent line, cos we may well touch those.
+                    var testEnd = mainland[i - 1];
+                    var testStart = mainland[i];
 
-                    for (int i = mainland.Count - 3; i > 1; i--)
+                    if (CountryGenerator.LineSegmentsCross(prevPoint, nextPoint, testStart, testEnd))
                     {
-                        var testStart = mainland[i];
-                        var testEnd = mainland[i - 1];
+                        // where the path crosses over itself, we need to deal with the extra loop, in one of two ways
+                        Console.WriteLine($"Found an intersection for step {step} with line segment #{i}");
 
-                        if (CountryGenerator.LineSegmentsCross(prevPoint, nextPoint, testStart, testEnd))
+                        // Because we are ALWAYS working our way anticlockwise around the main landmass:
+                        // "outties" always have the "older" line cross the "newer" one from left to right.
+                        // "innies" always have the "older" line cross the "newer" one from right to left.
+                        // UNLESS we are dealing with "nested" outties or innies, in which case the direction swaps.
+                        // But maybe its ok to swap what we do there, as we will get larger islands / inlets that way,
+                        // as opposed to "chains" of smaller ones, which are perhaps less important - especially on a political map.
+
+                        bool isLeft = CountryGenerator.IsLeftOfLine(prevPoint, nextPoint, testEnd);
+
+                        if (reverseLoopHandling)
+                            isLeft = !reverseLoopHandling;
+
+                        // is the end point of the "older" line on the right of the "newer" line? If so chop, otherwise reverse.
+                        if (isLeft)
                         {
-                            // Because we are ALWAYS working our way anticlockwise around the main landmass:
-                            // "outties" always have the "older" line cross the "newer" one from left to right.
-                            // "innies" always have the "older" line cross the "newer" one from right to left.
-                            // UNLESS we are dealing with "nested" outties or innies, in which case the direction swaps.
-                            // But maybe its ok to swap what we do there, as we will get larger islands / inlets that way,
-                            // as opposed to "chains" of smaller ones, which are perhaps less important - especially on a political map.
+                            int skipPoints = 2; // don't have islands start right adjacent to the mainland
+                            int islandPointsStart = i + 1 + skipPoints;
+                            int numIslandPoints = mainland.Count - islandPointsStart - skipPoints;
 
-                            // where the path crosses over itself, we will "snip off" the extra loop and use it as an island instead
-                            Console.WriteLine($"Found an intersection for step {step} with line segment #{i}");
-
-                            // TODO: is the end point of the "older" line on the right of the "newer" line?
-                            // If so, chop, otherwise, reverse. Can possibly do that as part of the segments-crossing calculation?
-                            if (loopMode == LoopMode.Chop)
+                            if (numIslandPoints > 3)
                             {
-                                int skipPoints = 2; // don't have islands start right adjacent to the mainland
-                                int islandPointsStart = i + 1 + skipPoints;
-                                int numIslandPoints = mainland.Count - islandPointsStart - skipPoints;
-
-                                if (numIslandPoints > 3)
-                                {
-                                    landMasses.Add(
-                                        new List<PointF>(
-                                            mainland
-                                                .Skip(islandPointsStart)
-                                                .Take(numIslandPoints)
-                                        )
-                                    );
-                                }
-
-                                // snip this entire "loop" off!
-                                mainland.RemoveRange(i + 1, mainland.Count - i - 1);
+                                landMasses.Add(
+                                    new List<PointF>(
+                                        mainland
+                                            .Skip(islandPointsStart)
+                                            .Take(numIslandPoints)
+                                    )
+                                );
                             }
-                            else if (loopMode == LoopMode.Reverse)
-                            {
-                                // reverse the order of all points after #i
-                                var reversePoints = mainland
-                                    .Skip(i + 1)
-                                    .Take(mainland.Count - i - 1)
-                                    .Reverse()
-                                    .ToArray();
 
-                                mainland.RemoveRange(i, mainland.Count - i);
-                                mainland.AddRange(reversePoints);
-                            }
-                            break;
+                            // snip this entire "loop" off!
+                            mainland.RemoveRange(i + 1, mainland.Count - i - 1);
                         }
+                        else
+                        {
+                            // reverse the order of all points after #i
+                            var reversePoints = mainland
+                                .Skip(i + 1)
+                                .Take(mainland.Count - i - 1)
+                                .Reverse()
+                                .ToArray();
+
+                            mainland.RemoveRange(i, mainland.Count - i);
+                            mainland.AddRange(reversePoints);
+                        }
+                        break;
                     }
                 }
 
@@ -140,7 +133,7 @@ namespace MapViewer
             brush = new SolidBrush(Color.FromArgb(32, Color.Red));
             g.FillEllipse(brush, generator.CenterX - generator.EllipseWidth / 2, generator.CenterY - generator.EllipseHeight / 2, generator.EllipseWidth, generator.EllipseHeight);
 
-            image.Save($"generated_{loopMode}.png", ImageFormat.Png);
+            image.Save($"generated_{(reverseLoopHandling ? "normal" : "reverse")}.png", ImageFormat.Png);
         }
 
         private static void FillPoints(Graphics g, List<PointF> points)

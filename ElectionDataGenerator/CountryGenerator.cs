@@ -75,6 +75,11 @@ namespace ElectionDataGenerator
             return (t >= 0f) && (t <= 1f) && (u >= 0f) && (u <= 1f);
         }
 
+        public static bool IsLeftOfLine(PointF lineStart, PointF lineEnd, PointF test)
+        {
+            return ((lineEnd.X - lineStart.X) * (test.Y - lineStart.Y) - (lineEnd.Y - lineStart.Y) * (test.X - lineStart.X)) > 0;
+        }
+
         public float CenterX { get; }
         public float CenterY { get; }
         public float EllipseWidth { get; }
