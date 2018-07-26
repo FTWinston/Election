@@ -40,10 +40,6 @@ namespace MapViewer
             foreach (var island in landMasses)
                 g.FillPath(brush, island);
 
-            // draw transparent ellipse for comparison
-            brush = new SolidBrush(Color.FromArgb(32, Color.Red));
-            g.FillEllipse(brush, generator.CenterX - generator.EllipseWidth / 2, generator.CenterY - generator.EllipseHeight / 2, generator.EllipseWidth, generator.EllipseHeight);
-
             image.Save($"generated_{(reverseLoopHandling ? "normal" : "reverse")}.png", ImageFormat.Png);
         }
     }

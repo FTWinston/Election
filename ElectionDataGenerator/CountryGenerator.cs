@@ -57,6 +57,8 @@ namespace ElectionDataGenerator
         public float EllipseWidth { get; }
         public float EllipseHeight { get; }
 
+        private List<GraphicsPath> Landmasses { get; set; }
+
         private PerlinNoise TerrainNoiseX { get; }
         private PerlinNoise TerrainNoiseY { get; }
 
@@ -87,10 +89,10 @@ namespace ElectionDataGenerator
             float frequency = 0.005f;
             float amplitude = Math.Min(Width, Height) / 2;
 
-            var landMasses = new List<List<PointF>>();
+            var landmasses = new List<List<PointF>>();
 
             var mainland = new List<PointF>();
-            landMasses.Add(mainland);
+            landmasses.Add(mainland);
 
             var prevPoint = new PointF(CenterX, CenterY);
 
@@ -130,7 +132,7 @@ namespace ElectionDataGenerator
                         if (reverseLoopHandling)
                             chopOff = !reverseLoopHandling;
 
-                        HandleTerrainBoundaryLoop(landMasses, mainland, i, chopOff);
+                        HandleTerrainBoundaryLoop(landmasses, mainland, i, chopOff);
                         break;
                     }
                 }
@@ -139,7 +141,9 @@ namespace ElectionDataGenerator
                 prevPoint = nextPoint;
             }
 
-            return landMasses
+            ScaleToFitBounds(landmasses);
+
+            Landmasses = landmasses
                 .Select(points =>
                 {
                     var types = new byte[points.Count];
@@ -149,6 +153,8 @@ namespace ElectionDataGenerator
                     return new GraphicsPath(points.ToArray(), types);
                 })
                 .ToList();
+
+            return Landmasses;
         }
 
         private static bool LineSegmentsCross(PointF line1start, PointF line1end, PointF line2start, PointF line2end)
@@ -183,7 +189,7 @@ namespace ElectionDataGenerator
             return ((lineEnd.X - lineStart.X) * (test.Y - lineStart.Y) - (lineEnd.Y - lineStart.Y) * (test.X - lineStart.X)) > 0;
         }
 
-        private static void HandleTerrainBoundaryLoop(List<List<PointF>> landMasses, List<PointF> mainland, int startIndex, bool chopOff)
+        private static void HandleTerrainBoundaryLoop(List<List<PointF>> landmasses, List<PointF> mainland, int startIndex, bool chopOff)
         {
             // is the end point of the "older" line on the right of the "newer" line? If so chop, otherwise reverse.
             if (chopOff)
@@ -194,7 +200,7 @@ namespace ElectionDataGenerator
 
                 if (numIslandPoints > 3)
                 {
-                    landMasses.Add(
+                    landmasses.Add(
                         new List<PointF>(
                             mainland
                                 .Skip(islandPointsStart)
@@ -218,6 +224,47 @@ namespace ElectionDataGenerator
                 mainland.RemoveRange(startIndex, mainland.Count - startIndex);
                 mainland.AddRange(reversePoints);
             }
+        }
+
+        private void ScaleToFitBounds(List<List<PointF>> landmasses)
+        {
+            // first, determine the extent of the terrain we have
+            float minX = Width, maxX = 0;
+            float minY = Height, maxY = 0;
+
+            foreach (var landmass in landmasses)
+                foreach (var point in landmass)
+                {
+                    if (point.X < minX)
+                        minX = point.X;
+                    else if (point.X > maxX)
+                        maxX = point.X;
+
+                    if (point.Y < minY)
+                        minY = point.Y;
+                    else if (point.Y > maxY)
+                        maxY = point.Y;
+                }
+
+            // adjust bounds so that some water will display all round
+            float margin = Math.Min(Width, Height) * 0.1f;
+            minX -= margin;
+            maxX += margin;
+            minY -= margin;
+            maxY += margin;
+
+            // then adjust every point so that they all fit onto our map nicely
+            float scaleX = Width / (maxX - minX);
+            float scaleY = Height / (maxY - minY);
+            float offsetX = -minX;
+            float offsetY = -minY;
+
+            foreach (var landmass in landmasses)
+                for (int i = landmass.Count - 1; i >= 0; i--)
+                {
+                    var point = landmass[i];
+                    landmass[i] = new PointF(point.X * scaleX + offsetX, point.Y * scaleY + offsetY);
+                }
         }
         #endregion terrain outline
     }
