@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ElectionData.Geography;
+using System;
 
 namespace ElectionDataGenerator
 {
@@ -41,5 +42,52 @@ namespace ElectionDataGenerator
          * 
          * Hmm, but we also want the regions to represent equal populations. Quite how we grow them is a bit up in the air.
          */
+
+        public Random Random { get; }
+        public int Width { get; }
+        public int Height { get; }
+
+        public float CenterX { get; }
+        public float CenterY { get; }
+        public float EllipseWidth { get; }
+        public float EllipseHeight { get; }
+
+        private PerlinNoise TerrainNoiseX { get; }
+        private PerlinNoise TerrainNoiseY { get; }
+
+        public CountryGenerator(int seed)
+        {
+            Random = new Random(seed);
+
+            Width = Random.Next(7, 11) * 100;
+            Height = Random.Next(7, 11) * 100;
+
+            CenterX = Width / 2f;
+            CenterY = Height / 2f;
+
+            EllipseWidth = Width * 0.75f;
+            EllipseHeight = Height * 0.75f;
+
+            TerrainNoiseX = new PerlinNoise(Random.Next(), 4);
+            TerrainNoiseY = new PerlinNoise(Random.Next(), 4);
+        }
+
+        public bool IsPointWithinEllipse(int x, int y)
+        {
+            return
+            (x - CenterX) * (x - CenterX) / (EllipseWidth * EllipseWidth * 0.25f) +
+            (y - CenterY) * (y - CenterY) / (EllipseHeight * EllipseHeight * 0.25f)
+            <= 1f;
+        }
+
+        public float GetTerrainNoiseX(float x, float y)
+        {
+            return TerrainNoiseX.GetValue(x, y);
+        }
+
+        public float GetTerrainNoiseY(float x, float y)
+        {
+            return TerrainNoiseY.GetValue(x, y);
+        }
     }
 }
