@@ -1,21 +1,25 @@
 ﻿using ElectionData.Geography;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Linq;
 
 namespace ElectionDataGenerator
 {
     public class CountryGenerator
     {
         /*
-         * Use simplex noise to simulate "elevation"
-         *# Consider eroding a few river esturies.
-         * Determine the coastline, including any inland bodies of water.
+         * Use noise to generate a terrain boundary (we don't care about elevation, really)
+         *# Should we remove any particularly tiny islands?
          * 
          * Within that coastline, place a pre-determined number of "district nuclei", somewhat evenly distributed.
-         *# If there's any land masses that have no districts on them, move at least one nuclei to each. How to determine?
-         * Expand those nuclei to determine the outline of each district. That sounds rather like a voronio diagram.
-         *# Determine the "center" of each district, which its attributes will be calculated from.
-         *# This should really just be (min + max) / 2 for X and Y, thoguh it's probably fine to use the nuclei instead.
+         * If there's any land masses that have no districts on them, move at least one nuclei to each.
+         * Expand those nuclei to determine the outline of each district. That sounds rather like a voronio diagram,
+         * but perhaps it should account for population density when determining distance, so cities get smaller districts etc.
+         * 
+         * Determine the "center" of each district, which its attributes will be calculated from.
+         * This should really just be (min + max) / 2 for X and Y, thoguh it's probably fine to use the nuclei instead.
          * 
          * Somehow determine the following values for each district:
          *      how urban/rural it is
@@ -48,38 +52,6 @@ namespace ElectionDataGenerator
         public int Width { get; }
         public int Height { get; }
 
-        public static bool LineSegmentsCross(PointF line1start, PointF line1end, PointF line2start, PointF line2end)
-        {
-            PointF CmP = new PointF(line2start.X - line1start.X, line2start.Y - line1start.Y);
-            PointF r = new PointF(line1end.X - line1start.X, line1end.Y - line1start.Y);
-            PointF s = new PointF(line2end.X - line2start.X, line2end.Y - line2start.Y);
-
-            float CmPxr = CmP.X * r.Y - CmP.Y * r.X;
-            float CmPxs = CmP.X * s.Y - CmP.Y * s.X;
-            float rxs = r.X * s.Y - r.Y * s.X;
-
-            if (CmPxr == 0f)
-            {
-                // Lines are collinear, and so intersect if they have any overlap
-                return ((line2start.X - line1start.X < 0f) != (line2start.X - line1end.X < 0f))
-                    || ((line2start.Y - line1start.Y < 0f) != (line2start.Y - line1end.Y < 0f));
-            }
-
-            if (rxs == 0f)
-                return false; // Lines are parallel.
-
-            float rxsr = 1f / rxs;
-            float t = CmPxs * rxsr;
-            float u = CmPxr * rxsr;
-
-            return (t >= 0f) && (t <= 1f) && (u >= 0f) && (u <= 1f);
-        }
-
-        public static bool IsLeftOfLine(PointF lineStart, PointF lineEnd, PointF test)
-        {
-            return ((lineEnd.X - lineStart.X) * (test.Y - lineStart.Y) - (lineEnd.Y - lineStart.Y) * (test.X - lineStart.X)) > 0;
-        }
-
         public float CenterX { get; }
         public float CenterY { get; }
         public float EllipseWidth { get; }
@@ -105,14 +77,148 @@ namespace ElectionDataGenerator
             TerrainNoiseY = new PerlinNoise(Random.Next(), 4);
         }
 
-        public float GetTerrainNoiseX(float x, float y)
+        #region terrain outline
+        public List<GraphicsPath> GenerateTerrain(bool reverseLoopHandling)
         {
-            return TerrainNoiseX.GetValue(x, y);
+            // travel around an ellipse, with noise applied to it
+
+            // TODO: frequency & amplitude ought to be part of the noise itself, rather than separate to it
+            // 0.001 to 0.01 seems to work best for noise frequency, 100 works well for noise amplitude
+            float frequency = 0.005f;
+            float amplitude = Math.Min(Width, Height) / 2;
+
+            var landMasses = new List<List<PointF>>();
+
+            var mainland = new List<PointF>();
+            landMasses.Add(mainland);
+
+            var prevPoint = new PointF(CenterX, CenterY);
+
+            int step = 0;
+            for (float angle = (float)Math.PI * 2; angle > 0; angle -= 0.01f /* roughly 500 steps */)
+            {
+                step++;
+
+                float ellipseX = CenterX + (float)Math.Cos(angle) * EllipseWidth / 2;
+                float ellipseY = CenterY + (float)Math.Sin(angle) * EllipseHeight / 2;
+
+                float placeX = ellipseX + amplitude * TerrainNoiseX.GetValue(ellipseX * frequency, ellipseY * frequency);
+                float placeY = ellipseY + amplitude * TerrainNoiseY.GetValue(ellipseX * frequency, ellipseY * frequency);
+
+                var nextPoint = new PointF(placeX, placeY);
+
+                // See if prevPoint - nextPoint crosses ANY of the previous lines. If it does, we have a loop / dangler.
+                // Ignore the first line and the most recent line, cos we may well touch those.
+
+                for (int i = mainland.Count - 3; i > 1; i--)
+                {
+                    var testEnd = mainland[i - 1];
+                    var testStart = mainland[i];
+
+                    if (LineSegmentsCross(prevPoint, nextPoint, testStart, testEnd))
+                    {
+
+                        // Because we are ALWAYS working our way anticlockwise around the main landmass:
+                        // "outties" always have the "older" line cross the "newer" one from left to right.
+                        // "innies" always have the "older" line cross the "newer" one from right to left.
+                        // UNLESS we are dealing with "nested" outties or innies, in which case the direction swaps.
+                        // But maybe its ok to swap what we do there, as we will get larger islands / inlets that way,
+                        // as opposed to "chains" of smaller ones, which are perhaps less important - especially on a political map.
+
+                        bool chopOff = IsLeftOfLine(prevPoint, nextPoint, testEnd);
+
+                        if (reverseLoopHandling)
+                            chopOff = !reverseLoopHandling;
+
+                        HandleTerrainBoundaryLoop(landMasses, mainland, i, chopOff);
+                        break;
+                    }
+                }
+
+                mainland.Add(nextPoint);
+                prevPoint = nextPoint;
+            }
+
+            return landMasses
+                .Select(points =>
+                {
+                    var types = new byte[points.Count];
+                    for (var i = types.Length - 1; i >= 0; i--)
+                        types[i] = 1;
+
+                    return new GraphicsPath(points.ToArray(), types);
+                })
+                .ToList();
         }
 
-        public float GetTerrainNoiseY(float x, float y)
+        private static bool LineSegmentsCross(PointF line1start, PointF line1end, PointF line2start, PointF line2end)
         {
-            return TerrainNoiseY.GetValue(x, y);
+            PointF CmP = new PointF(line2start.X - line1start.X, line2start.Y - line1start.Y);
+            PointF r = new PointF(line1end.X - line1start.X, line1end.Y - line1start.Y);
+            PointF s = new PointF(line2end.X - line2start.X, line2end.Y - line2start.Y);
+
+            float CmPxr = CmP.X * r.Y - CmP.Y * r.X;
+            float CmPxs = CmP.X * s.Y - CmP.Y * s.X;
+            float rxs = r.X * s.Y - r.Y * s.X;
+
+            if (CmPxr == 0f)
+            {
+                // Lines are collinear, and so intersect if they have any overlap
+                return (line2start.X - line1start.X < 0f) != (line2start.X - line1end.X < 0f)
+                    || (line2start.Y - line1start.Y < 0f) != (line2start.Y - line1end.Y < 0f);
+            }
+
+            if (rxs == 0f)
+                return false; // Lines are parallel.
+
+            float rxsr = 1f / rxs;
+            float t = CmPxs * rxsr;
+            float u = CmPxr * rxsr;
+
+            return t >= 0f && t <= 1f && u >= 0f && u <= 1f;
         }
+
+        private static bool IsLeftOfLine(PointF lineStart, PointF lineEnd, PointF test)
+        {
+            return ((lineEnd.X - lineStart.X) * (test.Y - lineStart.Y) - (lineEnd.Y - lineStart.Y) * (test.X - lineStart.X)) > 0;
+        }
+
+        private static void HandleTerrainBoundaryLoop(List<List<PointF>> landMasses, List<PointF> mainland, int startIndex, bool chopOff)
+        {
+            // is the end point of the "older" line on the right of the "newer" line? If so chop, otherwise reverse.
+            if (chopOff)
+            {
+                int skipPoints = 2; // don't have islands start right adjacent to the mainland
+                int islandPointsStart = startIndex + 1 + skipPoints;
+                int numIslandPoints = mainland.Count - islandPointsStart - skipPoints;
+
+                if (numIslandPoints > 3)
+                {
+                    landMasses.Add(
+                        new List<PointF>(
+                            mainland
+                                .Skip(islandPointsStart)
+                                .Take(numIslandPoints)
+                        )
+                    );
+                }
+
+                // snip this entire "loop" off!
+                mainland.RemoveRange(startIndex + 1, mainland.Count - startIndex - 1);
+            }
+            else
+            {
+                // reverse the order of all points after #i
+                var reversePoints = mainland
+                    .Skip(startIndex + 1)
+                    .Take(mainland.Count - startIndex - 1)
+                    .Reverse()
+                    .ToArray();
+
+                mainland.RemoveRange(startIndex, mainland.Count - startIndex);
+                mainland.AddRange(reversePoints);
+            }
+        }
+        #endregion terrain outline
     }
 }

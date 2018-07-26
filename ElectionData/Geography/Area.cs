@@ -1,15 +1,16 @@
 ﻿using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 
 namespace ElectionData.Geography
 {
     public class Area
     {
-        public Area(IEnumerable<Point> bounds)
+        public Area(IEnumerable<PointF> bounds)
         {
             Bounds = bounds.ToArray();
         }
 
-        Point[] Bounds { get; }
+        PointF[] Bounds { get; }
     }
 }
