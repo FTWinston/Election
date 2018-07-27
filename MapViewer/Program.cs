@@ -37,16 +37,22 @@ namespace MapViewer
             var landMasses = generator.GenerateTerrain(reverseLoopHandling);
 
             var districts = generator.PlaceDistricts(100);
+            var lines = generator.DelauneyTriangulation(districts);
 
+            // fill in the terrain
             brush = new SolidBrush(Color.Green);
             foreach (var island in landMasses)
                 g.FillPath(brush, island);
 
+            // draw the district divisions
+            var pen = new Pen(Color.Yellow);
+            foreach (var line in lines)
+                g.DrawLine(pen, line.Item1, line.Item2);
+
+            // draw the district center points
             brush = new SolidBrush(Color.Red);
             foreach (var district in districts)
-            {
                 g.FillEllipse(brush, district.X - 1, district.Y - 1, 2, 2);
-            }
 
             image.Save($"generated_{(reverseLoopHandling ? "normal" : "reverse")}.png", ImageFormat.Png);
         }

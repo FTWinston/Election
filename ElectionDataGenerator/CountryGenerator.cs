@@ -297,5 +297,164 @@ namespace ElectionDataGenerator
 
             return districts;
         }
+
+        public List<Tuple<PointF, PointF>> DelauneyTriangulation(List<PointF> points)
+        {
+            var enclosingTriangle = new TriangleF(
+                new PointF(-999999, -999999),
+                new PointF( 999999, -999999),
+                new PointF(-999999,  999999)
+            );
+
+            var triangulation = new List<TriangleF>();
+            triangulation.Add(enclosingTriangle);
+
+            foreach (var point in points)
+            {
+                // find all triangles that are no longer valid due to this node's insertion
+                var badTriangles = new List<TriangleF>();
+                foreach (var triangle in triangulation)
+                {
+                    if (InsideCircumcircle(point, triangle))
+                    {
+                        badTriangles.Add(triangle);
+                    }
+                }
+
+                // Find the boundary of polygonal hole formed by these "bad" triangles...
+                // Get the edges of the "bad" triangles which don't touch other bad triangles...
+                // Each pair of nodes here represents a line.
+                var polygon = new List<PointF>();
+                foreach (var triangle in badTriangles)
+                {
+                    for (var i = 0; i < 3; i++)
+                    {
+                        var edgeFrom = triangle.Vertices[i];
+                        var edgeTo = triangle.Vertices[i == 2 ? 0 : i + 1];
+
+                        var sharedWithOther = false;
+                        foreach (var other in badTriangles)
+                        {
+                            if (other == triangle)
+                            {
+                                continue;
+                            }
+
+                            if (!other.Vertices.Contains(edgeFrom))
+                            {
+                                continue;
+                            }
+
+                            if (!other.Vertices.Contains(edgeTo))
+                            {
+                                continue;
+                            }
+
+                            sharedWithOther = true;
+                            break;
+                        }
+
+                        if (!sharedWithOther)
+                        {
+                            polygon.Add(edgeFrom);
+                            polygon.Add(edgeTo);
+                        }
+                    }
+                }
+
+                // discard all bad triangles
+                foreach (var triangle in badTriangles)
+                {
+                    triangulation.Remove(triangle);
+                }
+
+                // re-triangulate the polygonal hole ... create a new triangle for each edge
+                for (var i = 0; i < polygon.Count - 1; i += 2)
+                {
+                    var triangle = new TriangleF(polygon[i], polygon[i + 1], point);
+                    triangulation.Add(triangle);
+                }
+            }
+
+        
+            // remove all triangles that contain a vertex from the original super-triangle
+            for (var i = 0; i<triangulation.Count; i++) {
+                var triangle = triangulation[i];
+                foreach (var vertex in triangle.Vertices) {
+                    if (enclosingTriangle.Vertices.Contains(vertex)) {
+                        triangulation.RemoveAt(i);
+                        i--;
+                        break;
+                    }
+                }
+            }
+
+            var links = new List<Tuple<PointF, PointF>>();
+
+            // convert triangles to UNIQUE lines
+            foreach (var triangle in triangulation)
+            {
+                PointF v0 = triangle.Vertices[0], v1 = triangle.Vertices[1], v2 = triangle.Vertices[2];
+
+                bool firstDuplicate = false, secondDuplicate = false, thirdDuplicate = false;
+                foreach (var link in links)
+                {
+                    if (link.Item1 == v0)
+                    {
+                        if (link.Item2 == v1)
+                        {
+                            firstDuplicate = true;
+                        }
+                        else if (link.Item2 == v2)
+                        {
+                            thirdDuplicate = true;
+                        }
+                    }
+                    else if (link.Item1 == v1)
+                    {
+                        if (link.Item2 == v0)
+                        {
+                            firstDuplicate = true;
+                        }
+                        else if (link.Item2 == v2)
+                        {
+                            secondDuplicate = true;
+                        }
+                    }
+                    else if (link.Item1 == v2)
+                    {
+                        if (link.Item2 == v0)
+                        {
+                            thirdDuplicate = true;
+                        }
+                        else if (link.Item2 == v1)
+                        {
+                            secondDuplicate = true;
+                        }
+                    }
+                }
+
+                if (!firstDuplicate)
+                {
+                    links.Add(new Tuple<PointF, PointF>(v0, v1));
+                }
+                if (!secondDuplicate)
+                {
+                    links.Add(new Tuple<PointF, PointF>(v1, v2));
+                }
+                if (!thirdDuplicate)
+                {
+                    links.Add(new Tuple<PointF, PointF>(v2, v0));
+                }
+            }
+
+            return links;
+        }
+
+        private bool InsideCircumcircle(PointF point, TriangleF triangle)
+        {
+            var distSq = point.DistanceSqTo(triangle.CircumCenter);
+            return distSq <= triangle.CircumRadiusSq;
+        }
     }
 }
