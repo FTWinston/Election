@@ -298,12 +298,12 @@ namespace ElectionDataGenerator
             return districts;
         }
 
-        public List<Tuple<PointF, PointF>> DelauneyTriangulation(List<PointF> points)
+        public List<TriangleF> DelauneyTriangulation(List<PointF> points)
         {
             var enclosingTriangle = new TriangleF(
-                new PointF(-999999, -999999),
-                new PointF( 999999, -999999),
-                new PointF(-999999,  999999)
+                new PointF(0, 0),
+                new PointF(Width * 2, 0),
+                new PointF(0, Height * 2)
             );
 
             var triangulation = new List<TriangleF>();
@@ -375,7 +375,6 @@ namespace ElectionDataGenerator
                     triangulation.Add(triangle);
                 }
             }
-
         
             // remove all triangles that contain a vertex from the original super-triangle
             for (var i = 0; i<triangulation.Count; i++) {
@@ -388,7 +387,11 @@ namespace ElectionDataGenerator
                     }
                 }
             }
-
+            return triangulation;
+        }
+        
+        public static List<Tuple<PointF, PointF>> GetDistinctLines(List<TriangleF> triangulation)
+        {
             var links = new List<Tuple<PointF, PointF>>();
 
             // convert triangles to UNIQUE lines

@@ -2,12 +2,13 @@
 
 namespace ElectionDataGenerator
 {
-    struct TriangleF
+    public struct TriangleF
     {
         public TriangleF(PointF v1, PointF v2, PointF v3)
         {
             Vertices = new PointF[] { v1, v2, v3 };
 
+            Centroid = new PointF((v1.X + v2.X + v3.X) / 3, (v1.Y + v2.Y + v3.Y) / 3);
             CircumCenter = GetCircumCenter(v1, v2, v3);
             CircumRadiusSq = CircumCenter.DistanceSqTo(v1);
         }
@@ -15,6 +16,7 @@ namespace ElectionDataGenerator
         public PointF[] Vertices { get; }
         public PointF CircumCenter { get; }
         public float CircumRadiusSq { get; }
+        public PointF Centroid { get; }
 
         public static bool operator ==(TriangleF left, TriangleF right)
         {
