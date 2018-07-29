@@ -375,9 +375,9 @@ namespace ElectionDataGenerator
                     triangulation.Add(triangle);
                 }
             }
-        
+
             // remove all triangles that contain a vertex from the original super-triangle
-            for (var i = 0; i<triangulation.Count; i++) {
+            for (var i = 0; i < triangulation.Count; i++) {
                 var triangle = triangulation[i];
                 foreach (var vertex in triangle.Vertices) {
                     if (enclosingTriangle.Vertices.Contains(vertex)) {
@@ -387,6 +387,7 @@ namespace ElectionDataGenerator
                     }
                 }
             }
+
             return triangulation;
         }
         

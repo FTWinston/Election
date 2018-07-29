@@ -20,39 +20,69 @@ namespace MapViewer
             //Console.ReadKey();
         }
 
-        private static void GenerateImage(int seed, bool reverseLoopHandling)
+        private static void GenerateImage(int seed, bool sortDistricts)
         {
-            Console.WriteLine($"Generating with seed {seed} - will {(reverseLoopHandling ? "reverse" : "process")} any loops");
+            Console.WriteLine($"Generating with seed {seed} - will {(sortDistricts ? "add to smallest" : "add to any")} district");
 
             var generator = new CountryGenerator(seed);
 
-            var landmasses = generator.GenerateTerrain(reverseLoopHandling);
+            var landmasses = generator.GenerateTerrain(sortDistricts);
 
-            var districts = generator.PlaceDistricts(100);
+            var internalPoints = generator.PlaceDistricts(100);
 
             var allPoints = landmasses
                 .SelectMany(l => l.PathPoints)
                 .ToList();
-            allPoints.AddRange(districts);
+            allPoints.AddRange(internalPoints);
 
             var triangles = generator.DelauneyTriangulation(allPoints);
 
             // remove all triangles whose center isn't in any of the land masses
-            triangles = triangles.Where(t =>
+            var polygons = triangles.Where(t =>
             {
                 foreach (var landmass in landmasses)
                     if (landmass.IsVisible(t.Centroid))
                         return true;
                 return false;
             })
+            .Select(t => new PolygonF(t.Vertices))
             .ToList();
 
-            var image = DrawTerrain(generator, landmasses, districts, triangles);
+            // pick certain triangles to be the start of districts, and merge adjacent triangles into them
+            Random r = new Random();
 
-            image.Save($"generated_{(reverseLoopHandling ? "reverse" : "normal")}.png", ImageFormat.Png);
+            var districts = new List<PolygonF>();
+            for (int i=0; i<10; i++)
+            {
+                int polygonIndex = r.Next(polygons.Count);
+                districts.Add(polygons[polygonIndex]);
+                polygons.RemoveAt(polygonIndex);
+            }
+
+            int numUnmerged;
+            do
+            {
+                numUnmerged = polygons.Count;
+
+                for (int i = polygons.Count - 2; i >= 0; i--)
+                {
+                    // If any adjacent districts, add this point to the one with the smallest area
+                    foreach (var district in districts.OrderByDescending(d => d.Area))
+                    {
+                        if (district.MergeIfAdjacent(polygons[i]))
+                        {
+                            polygons.RemoveAt(i);
+                            break;
+                        }
+                    }
+                }
+            } while (numUnmerged != polygons.Count); // if some polygon has been merged, keep going
+
+            var image = DrawTerrain(generator, landmasses, internalPoints, districts.Concat(polygons));
+            image.Save($"generated_{(sortDistricts ? "smallest" : "normal")}.png", ImageFormat.Png);
         }
 
-        private static Image DrawTerrain(CountryGenerator generator, List<GraphicsPath> landmasses, List<PointF> districts, List<TriangleF> triangles)
+        private static Image DrawTerrain(CountryGenerator generator, List<GraphicsPath> landmasses, List<PointF> districts, IEnumerable<PolygonF> polygons)
         {
             var image = new Bitmap(generator.Width, generator.Height);
             Graphics g = Graphics.FromImage(image);
@@ -63,8 +93,9 @@ namespace MapViewer
             g.FillRectangle(brush, generator.CenterX, generator.CenterY, generator.CenterX, generator.CenterY);
 
 
-            var lines = CountryGenerator.GetDistinctLines(triangles);
+            //var lines = CountryGenerator.GetDistinctLines(polygons);
 
+            /*
             // fill in the terrain
             brush = new SolidBrush(Color.Green);
             foreach (var island in landmasses)
@@ -79,6 +110,19 @@ namespace MapViewer
             brush = new SolidBrush(Color.Red);
             foreach (var district in districts)
                 g.FillEllipse(brush, district.X - 1, district.Y - 1, 2, 2);
+            */
+
+            Random colors = new Random();
+
+            // draw each region in a separate colour
+            foreach (var polygon in polygons)
+            {
+                var path = new GraphicsPath();
+                path.AddLines(polygon.Vertices.ToArray());
+
+                brush = new SolidBrush(Color.FromArgb(64 + colors.Next(192), 64 + colors.Next(192), 64 + colors.Next(192)));
+                g.FillPath(brush, path);
+            }
 
             return image;
         }
