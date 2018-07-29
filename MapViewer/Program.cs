@@ -15,20 +15,33 @@ namespace MapViewer
             Random r = new Random();
             int seed = r.Next();
 
-            GenerateImage(seed, false);
-            GenerateImage(seed, true);
+            GenerateImage(seed, 50, 10);
+            GenerateImage(seed, 100, 10);
+            GenerateImage(seed, 500, 10);
+
+            GenerateImage(seed, 50, 50);
+            GenerateImage(seed, 100, 50);
+            GenerateImage(seed, 100, 75);
+
+            GenerateImage(seed, 100, 50);
+            GenerateImage(seed, 200, 75);
+            GenerateImage(seed, 200, 100);
+
+            GenerateImage(seed, 500, 50);
+            GenerateImage(seed, 500, 100);
+            GenerateImage(seed, 500, 200);
             //Console.ReadKey();
         }
 
-        private static void GenerateImage(int seed, bool sortDistricts)
+        private static void GenerateImage(int seed, int numInternalPoints, int numDistricts)
         {
-            Console.WriteLine($"Generating with seed {seed} - will {(sortDistricts ? "add to smallest" : "add to any")} district");
+            Console.WriteLine($"Generating with seed {seed}: {numInternalPoints} points, {numDistricts} districts");
 
             var generator = new CountryGenerator(seed);
 
-            var landmasses = generator.GenerateTerrain(sortDistricts);
+            var landmasses = generator.GenerateTerrain();
 
-            var internalPoints = generator.PlaceDistricts(100);
+            var internalPoints = generator.PlaceDistricts(numInternalPoints);
 
             var allPoints = landmasses
                 .SelectMany(l => l.PathPoints)
@@ -38,7 +51,7 @@ namespace MapViewer
             var triangles = generator.DelauneyTriangulation(allPoints);
 
             // remove all triangles whose center isn't in any of the land masses
-            var polygons = triangles.Where(t =>
+            var unfinishedPolygons = triangles.Where(t =>
             {
                 foreach (var landmass in landmasses)
                     if (landmass.IsVisible(t.Centroid))
@@ -48,38 +61,73 @@ namespace MapViewer
             .Select(t => new PolygonF(t.Vertices))
             .ToList();
 
-            // pick certain triangles to be the start of districts, and merge adjacent triangles into them
-            Random r = new Random();
+            var totalArea = unfinishedPolygons.Sum(p => p.Area);
+            var targetArea = totalArea / numDistricts;
+            var minArea = targetArea / 5f;
 
+            // for each district, merge in adjacent districts until we reach a size limit (say 1/10 total area)
             var districts = new List<PolygonF>();
-            for (int i=0; i<10; i++)
-            {
-                int polygonIndex = r.Next(polygons.Count);
-                districts.Add(polygons[polygonIndex]);
-                polygons.RemoveAt(polygonIndex);
-            }
 
-            int numUnmerged;
-            do
+            while (unfinishedPolygons.Any())
             {
-                numUnmerged = polygons.Count;
+                var district = unfinishedPolygons[0];
+                unfinishedPolygons.RemoveAt(0);
 
-                for (int i = polygons.Count - 2; i >= 0; i--)
+                // add adjacent polygons onto this one until it reaches a threshold or there aren't any
+                bool keepAdding;
+
+                do
                 {
-                    // If any adjacent districts, add this point to the one with the smallest area
-                    foreach (var district in districts.OrderByDescending(d => d.Area))
+                    keepAdding = false;
+
+                    for (int iPolygon = 0; iPolygon < unfinishedPolygons.Count; iPolygon++)
                     {
-                        if (district.MergeIfAdjacent(polygons[i]))
+                        var testPolygon = unfinishedPolygons[iPolygon];
+
+                        if (district.MergeIfAdjacent(unfinishedPolygons[iPolygon]))
                         {
-                            polygons.RemoveAt(i);
-                            break;
+                            unfinishedPolygons.RemoveAt(iPolygon);
+
+                            if (district.Area >= targetArea)
+                            {
+                                keepAdding = false;
+                                break;
+                            }
+
+                            keepAdding = true;
                         }
                     }
-                }
-            } while (numUnmerged != polygons.Count); // if some polygon has been merged, keep going
 
-            var image = DrawTerrain(generator, landmasses, internalPoints, districts.Concat(polygons));
-            image.Save($"generated_{(sortDistricts ? "smallest" : "normal")}.png", ImageFormat.Png);
+                } while (keepAdding);
+
+                districts.Add(district);
+            }
+
+            // once we have districts, merge any very small districts (< 1/50 total?) onto anything with even one adjacent vertex
+            for (int iDistrict = 0; iDistrict < districts.Count; iDistrict++)
+            {
+                var district = districts[iDistrict];
+                if (district.Area >= minArea)
+                    continue;
+
+                // merge this district onto any adjacent one, if we can
+                for (int iMergeWith = 0; iMergeWith < districts.Count; iMergeWith++)
+                {
+                    if (iMergeWith == iDistrict)
+                        continue;
+
+                    var mergeInto = districts[iMergeWith];
+                    if (mergeInto.MergeIfAdjacent(district))
+                    {
+                        districts.RemoveAt(iDistrict);
+                        iDistrict--;
+                        break;
+                    }
+                }
+            }
+
+            var image = DrawTerrain(generator, landmasses, internalPoints, districts);
+            image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
         }
 
         private static Image DrawTerrain(CountryGenerator generator, List<GraphicsPath> landmasses, List<PointF> districts, IEnumerable<PolygonF> polygons)

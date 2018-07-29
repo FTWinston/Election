@@ -80,7 +80,7 @@ namespace ElectionDataGenerator
         }
 
         #region terrain outline
-        public List<GraphicsPath> GenerateTerrain(bool reverseLoopHandling)
+        public List<GraphicsPath> GenerateTerrain()
         {
             // travel around an ellipse, with noise applied to it
 
@@ -128,10 +128,6 @@ namespace ElectionDataGenerator
                         // as opposed to "chains" of smaller ones, which are perhaps less important - especially on a political map.
 
                         bool chopOff = IsLeftOfLine(prevPoint, nextPoint, testEnd);
-
-                        if (reverseLoopHandling)
-                            chopOff = !reverseLoopHandling;
-
                         HandleTerrainBoundaryLoop(landmasses, mainland, i, chopOff);
                         break;
                     }
