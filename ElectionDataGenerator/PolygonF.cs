@@ -159,6 +159,26 @@ namespace ElectionDataGenerator
 
         public void MergeWith(PolygonF otherPolygon, AdjacencyInfo adjacencyInfo)
         {
+            Area += otherPolygon.Area;
+
+            if (adjacencyInfo.Length == otherPolygon.Vertices.Count)
+            {
+                // other polygon is entirely wrapped, remove its vertices from this one
+                foreach (var vertex in otherPolygon.Vertices)
+                    Vertices.Remove(vertex);
+                return;
+            }
+            else if (adjacencyInfo.Length == otherPolygon.Vertices.Count)
+            {
+                // this polygon is entirely wrapped, remove this polygon's vertices from it and then use those on this one
+                foreach (var vertex in Vertices)
+                    otherPolygon.Vertices.Remove(vertex);
+
+                Vertices.Clear();
+                Vertices.AddRange(otherPolygon.Vertices);
+                return;
+            }
+
             CompareAdjacency(this, adjacencyInfo, out int localStartIndex, out int localEndIndex, out bool localForward);
             CompareAdjacency(otherPolygon, adjacencyInfo, out int otherStartIndex, out int otherEndIndex, out bool otherForward);
 
@@ -175,7 +195,6 @@ namespace ElectionDataGenerator
                 otherPolygon.Vertices.Reverse();
 
             Vertices.InsertRange(insertIndex, otherPolygon.Vertices);
-            Area += otherPolygon.Area;
         }
     }
 }
