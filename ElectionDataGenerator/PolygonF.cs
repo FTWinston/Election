@@ -128,6 +128,17 @@ namespace ElectionDataGenerator
         {
             if (!forward)
             {
+                if (startIndexExclusive > endIndexExclusive)
+                {
+                    // where we need to wrap around the bounds in reverse, we need to make the section being retained contiguous,
+                    // or the vertexes aren't added in the right order
+                    polygon.Vertices.AddRange(polygon.Vertices.Take(endIndexExclusive + 1));
+                    polygon.Vertices.RemoveRange(0, endIndexExclusive + 1);
+
+                    startIndexExclusive -= endIndexExclusive + 1;
+                    endIndexExclusive = polygon.Vertices.Count - 1;
+                }
+
                 var tmp = endIndexExclusive;
                 endIndexExclusive = startIndexExclusive;
                 startIndexExclusive = tmp;
@@ -151,19 +162,20 @@ namespace ElectionDataGenerator
             CompareAdjacency(this, adjacencyInfo, out int localStartIndex, out int localEndIndex, out bool localForward);
             CompareAdjacency(otherPolygon, adjacencyInfo, out int otherStartIndex, out int otherEndIndex, out bool otherForward);
 
-            // remove any "mid" points in the array of shared adjacent edge points from this polygon
+            // remove any "mid" points in the adjacent edge array from this polygon
             int insertIndex = RemoveMidPoints(this, localStartIndex, localEndIndex, localForward);
 
-            // remove ALL points in the array from the other polygon
+            // remove ALL points in the adjacent edge array from the other polygon
             otherStartIndex = WrapIndex(otherStartIndex, otherPolygon.Vertices.Count, !otherForward);
             otherEndIndex = WrapIndex(otherEndIndex, otherPolygon.Vertices.Count, otherForward);
             RemoveMidPoints(otherPolygon, otherStartIndex, otherEndIndex, otherForward);
 
             // add all remaining vertices from the other polgyon, reversing them if necessary
-            if (localForward != otherForward)
+            if (localForward == otherForward)
                 otherPolygon.Vertices.Reverse();
 
             Vertices.InsertRange(insertIndex, otherPolygon.Vertices);
+            Area += otherPolygon.Area;
         }
     }
 }

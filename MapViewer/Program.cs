@@ -15,21 +15,7 @@ namespace MapViewer
             Random r = new Random();
             int seed = r.Next();
 
-            GenerateImage(seed, 50, 10);
-            GenerateImage(seed, 100, 10);
-            GenerateImage(seed, 500, 10);
-
-            GenerateImage(seed, 50, 50);
-            GenerateImage(seed, 100, 50);
-            GenerateImage(seed, 100, 75);
-
-            GenerateImage(seed, 100, 50);
-            GenerateImage(seed, 200, 75);
-            GenerateImage(seed, 200, 100);
-
-            GenerateImage(seed, 500, 50);
             GenerateImage(seed, 500, 100);
-            GenerateImage(seed, 500, 200);
             //Console.ReadKey();
         }
 
@@ -80,22 +66,34 @@ namespace MapViewer
                     var testPolygon = districts[iPolygon];
 
                     if (testPolygon.Area > targetArea)
-                        continue; // don't merge into something else if it's already big enough
+                        continue; // don't merge if it's already big enough
 
-                    var allAdjacent = districts
-                        .Where(p => p != testPolygon)
-                        .Select(p => new Tuple<PolygonF, AdjacencyInfo>(p, testPolygon.GetAdjacencyInfo(p)))
-                        .Where(adjaceny => adjaceny.Item2 != null);
+                    AdjacencyInfo bestAdjacency = null;
+                    PolygonF bestPolygon = null;
 
-                    var longestEdgeAjacent = allAdjacent
-                        .Where(a => a.Item1.Area < targetArea) // don't merge into something that's already big enough
-                        .OrderByDescending(a => a.Item2.Length)
-                        .FirstOrDefault();
+                    foreach (var polygon in districts)
+                    {
+                        if (polygon == testPolygon)
+                            continue; // don't merge with self
 
-                    if (longestEdgeAjacent == null)
+                        if (polygon.Area > targetArea)
+                            continue; // don't merge if target is already big enough
+                        
+                        var adjacency = testPolygon.GetAdjacencyInfo(polygon);
+                        if (adjacency == null)
+                            continue; // don't merge if not adjacent
+
+                        if (bestAdjacency != null && adjacency.Length < bestAdjacency.Length)
+                            continue; // don't merge if we already have a polygon we share longer edge(s) with
+
+                        bestAdjacency = adjacency;
+                        bestPolygon = polygon;
+                    }
+
+                    if (bestPolygon == null)
                         continue;
 
-                    longestEdgeAjacent.Item1.MergeWith(testPolygon, longestEdgeAjacent.Item2);
+                    bestPolygon.MergeWith(testPolygon, bestAdjacency);
 
                     districts.RemoveAt(iPolygon);
                     iPolygon--;
@@ -129,11 +127,11 @@ namespace MapViewer
                 }
             }
             */
-            var image = DrawTerrain(generator, landmasses, internalPoints, districts);
+            var image = DrawTerrain(generator, landmasses, districts);
             image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
         }
 
-        private static Image DrawTerrain(CountryGenerator generator, List<GraphicsPath> landmasses, List<PointF> districts, IEnumerable<PolygonF> polygons)
+        private static Image DrawTerrain(CountryGenerator generator, List<GraphicsPath> landmasses, IEnumerable<PolygonF> polygons)
         {
             var image = new Bitmap(generator.Width, generator.Height);
             Graphics g = Graphics.FromImage(image);
@@ -143,24 +141,11 @@ namespace MapViewer
             g.FillRectangle(brush, 0, 0, generator.CenterX, generator.CenterY);
             g.FillRectangle(brush, generator.CenterX, generator.CenterY, generator.CenterX, generator.CenterY);
 
-
-            //var lines = CountryGenerator.GetDistinctLines(polygons);
-
             /*
-            // fill in the terrain
-            brush = new SolidBrush(Color.Green);
+            // draw the terrain outline
+            var pen = new Pen(Color.LightGray, 5);
             foreach (var island in landmasses)
-                g.FillPath(brush, island);
-
-            // draw the district divisions
-            var pen = new Pen(Color.Yellow);
-            foreach (var line in lines)
-                g.DrawLine(pen, line.Item1, line.Item2);
-
-            // draw the district center points
-            brush = new SolidBrush(Color.Red);
-            foreach (var district in districts)
-                g.FillEllipse(brush, district.X - 1, district.Y - 1, 2, 2);
+                g.DrawPath(pen, island);
             */
 
             Random colors = new Random();
