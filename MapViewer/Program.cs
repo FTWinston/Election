@@ -15,7 +15,7 @@ namespace MapViewer
             Random r = new Random();
             int seed = r.Next();
 
-            GenerateImage(seed, 500, 100);
+            GenerateImage(seed, 1000, 100);
             //Console.ReadKey();
         }
 
@@ -103,31 +103,49 @@ namespace MapViewer
 
             } while (keepAdding);
 
-            /*
-            // once we have districts, merge any very small districts (< 1/50 total?) onto anything with even one adjacent vertex
-            for (int iDistrict = 0; iDistrict < districts.Count; iDistrict++)
+            var image = DrawTerrain(generator, landmasses, districts);
+            image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}_beforeTiny.png", ImageFormat.Png);
+
+            // Once we have grown all the districts as far as we can without going beyond the limit,
+            // merge any very small districts onto anything that's adjacent.
+            for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
             {
-                var district = districts[iDistrict];
-                if (district.Area >= minArea)
+                var testPolygon = districts[iPolygon];
+                if (testPolygon.Area >= minArea)
                     continue;
 
                 // merge this district onto any adjacent one, if we can
-                for (int iMergeWith = 0; iMergeWith < districts.Count; iMergeWith++)
-                {
-                    if (iMergeWith == iDistrict)
-                        continue;
+                AdjacencyInfo bestAdjacency = null;
+                PolygonF bestPolygon = null;
 
-                    var mergeInto = districts[iMergeWith];
-                    if (mergeInto.MergeIfAdjacent(district))
-                    {
-                        districts.RemoveAt(iDistrict);
-                        iDistrict--;
-                        break;
-                    }
+                foreach (var polygon in districts)
+                {
+                    if (polygon == testPolygon)
+                        continue; // don't merge with self
+
+                    var adjacency = testPolygon.GetAdjacencyInfo(polygon);
+                    if (adjacency == null)
+                        continue; // don't merge if not adjacent
+
+                    if (bestAdjacency != null && adjacency.Length < bestAdjacency.Length)
+                        continue; // don't merge if we already have a polygon we share longer edge(s) with
+
+                    bestAdjacency = adjacency;
+                    bestPolygon = polygon;
                 }
+
+                if (bestPolygon == null)
+                    continue;
+
+                bestPolygon.MergeWith(testPolygon, bestAdjacency);
+
+                districts.RemoveAt(iPolygon);
+                iPolygon--;
             }
-            */
-            var image = DrawTerrain(generator, landmasses, districts);
+
+            // TODO: any remaining tiny island districts should be merged with the nearest district, even if they don't touch.
+
+            image = DrawTerrain(generator, landmasses, districts);
             image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
         }
 
