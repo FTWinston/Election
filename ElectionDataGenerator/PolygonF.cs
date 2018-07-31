@@ -114,8 +114,33 @@ namespace ElectionDataGenerator
 
         private static void CompareAdjacency(PolygonF polygon, AdjacencyInfo adjacencyInfo, out int startIndex, out int endIndex, out bool forward)
         {
-            startIndex = polygon.Vertices.IndexOf(adjacencyInfo.Vertices[0]);
             var index2 = polygon.Vertices.IndexOf(adjacencyInfo.Vertices[1]);
+            startIndex = polygon.Vertices.LastIndexOf(adjacencyInfo.Vertices[0], index2);
+            if (startIndex == -1)
+            {
+                startIndex = polygon.Vertices.IndexOf(adjacencyInfo.Vertices[0], index2);
+
+                if (startIndex > 0)
+                {
+                    // if the one vertex is repeated multiple times, find the closest copy
+                    var tmp1 = polygon.Vertices.LastIndexOf(adjacencyInfo.Vertices[1], startIndex - 1);
+                    var tmp2 = polygon.Vertices.IndexOf(adjacencyInfo.Vertices[1], startIndex + 1);
+
+                    if (tmp1 != -1)
+                    {
+                        if (tmp2 != -1)
+                        {
+                            index2 = Math.Abs(startIndex - tmp1) < Math.Abs(startIndex - tmp2)
+                                ? tmp1
+                                : tmp2;
+                        }
+                        else
+                            index2 = tmp1;
+                    }
+                    else if (tmp2 != -1)
+                        index2 = tmp2;
+                }
+            }
 
             endIndex = adjacencyInfo.Vertices.Length > 2
                 ? polygon.Vertices.IndexOf(adjacencyInfo.Vertices[adjacencyInfo.Vertices.Length - 1])
@@ -126,9 +151,23 @@ namespace ElectionDataGenerator
 
         private static int RemoveMidPoints(PolygonF polygon, int startIndexExclusive, int endIndexExclusive, bool forward)
         {
-            if (!forward)
+            if (forward)
             {
-                if (startIndexExclusive > endIndexExclusive)
+                // TODO: refactor this "almost" duplication
+                if (startIndexExclusive < endIndexExclusive - 1)
+                {
+                    // where we need to wrap around the bounds in forwards, we need to make the section being retained contiguous,
+                    // or the vertexes aren't added in the right order
+                    polygon.Vertices.AddRange(polygon.Vertices.Take(startIndexExclusive + 1));
+                    polygon.Vertices.RemoveRange(0, startIndexExclusive + 1);
+
+                    endIndexExclusive -= startIndexExclusive + 1;
+                    startIndexExclusive = polygon.Vertices.Count - 1;
+                }
+            }
+            else
+            {
+                if (startIndexExclusive > endIndexExclusive + 1)
                 {
                     // where we need to wrap around the bounds in reverse, we need to make the section being retained contiguous,
                     // or the vertexes aren't added in the right order
@@ -161,19 +200,34 @@ namespace ElectionDataGenerator
         {
             Area += otherPolygon.Area;
 
-            if (adjacencyInfo.Length == otherPolygon.Vertices.Count)
+            if (adjacencyInfo.Vertices.Length == otherPolygon.Vertices.Count)
             {
-                // other polygon is entirely wrapped, remove its vertices from this one
-                foreach (var vertex in otherPolygon.Vertices)
+                // Other polygon is entirely contained in this one.
+                // If it's fully wrapped, remove all its vertices, otherwise remove all but the first and last adjacent vertices.
+                bool firstLastEqual = adjacencyInfo.Vertices[0] == adjacencyInfo.Vertices[adjacencyInfo.Vertices.Length - 1];
+                var toRemove = firstLastEqual
+                    ? otherPolygon.Vertices
+                    : otherPolygon.Vertices.Skip(1)
+                        .Take(otherPolygon.Vertices.Count - 2);
+
+                foreach (var vertex in toRemove)
                     Vertices.Remove(vertex);
                 return;
             }
-            else if (adjacencyInfo.Length == otherPolygon.Vertices.Count)
+            else if (adjacencyInfo.Vertices.Length == otherPolygon.Vertices.Count)
             {
-                // this polygon is entirely wrapped, remove this polygon's vertices from it and then use those on this one
-                foreach (var vertex in Vertices)
+                // This polygon is entirely contained the other one one.
+                // If it's fully wrapped, remove all its vertices, otherwise remove all but the first and last adjacent vertices.
+                bool firstLastEqual = adjacencyInfo.Vertices[0] == adjacencyInfo.Vertices[adjacencyInfo.Vertices.Length - 1];
+                var toRemove = firstLastEqual
+                    ? Vertices
+                    : Vertices.Skip(1)
+                        .Take(Vertices.Count - 2);
+
+                foreach (var vertex in toRemove)
                     otherPolygon.Vertices.Remove(vertex);
 
+                // and then use those on this one
                 Vertices.Clear();
                 Vertices.AddRange(otherPolygon.Vertices);
                 return;
