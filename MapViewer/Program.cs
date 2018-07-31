@@ -48,61 +48,64 @@ namespace MapViewer
                 .ToList();
             allPoints.AddRange(internalPoints);
 
-            var triangles = generator.DelauneyTriangulation(allPoints);
+            var triangles = generator
+                .GetDelauneyTriangulation(allPoints);
+            generator.LinkAdjacentTriangles(triangles);
 
-            // remove all triangles whose center isn't in any of the land masses
-            var unfinishedPolygons = triangles.Where(t =>
-            {
-                foreach (var landmass in landmasses)
-                    if (landmass.IsVisible(t.Centroid))
-                        return true;
-                return false;
-            })
-            .Select(t => new PolygonF(t.Vertices))
-            .ToList();
+            // remove all triangles whose center isn't in any of the land masses, and convert the remainder to polygons
+            var districts = triangles
+                .Where(t =>
+                {
+                    foreach (var landmass in landmasses)
+                        if (landmass.IsVisible(t.Centroid))
+                            return true;
+                    return false;
+                })
+                .Select(t => new PolygonF(t.Vertices))
+                .ToList();
 
-            var totalArea = unfinishedPolygons.Sum(p => p.Area);
+            var totalArea = districts.Sum(p => p.Area);
             var targetArea = totalArea / numDistricts;
             var minArea = targetArea / 5f;
 
-            // for each district, merge in adjacent districts until we reach a size limit (say 1/10 total area)
-            var districts = new List<PolygonF>();
+            bool keepAdding;
 
-            while (unfinishedPolygons.Any())
+            // each unfinished polygon should be merged onto the adjacent polygon that shares its longest edge
+            do
             {
-                var district = unfinishedPolygons[0];
-                unfinishedPolygons.RemoveAt(0);
+                keepAdding = false;
 
-                // add adjacent polygons onto this one until it reaches a threshold or there aren't any
-                bool keepAdding;
-
-                do
+                for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
                 {
-                    keepAdding = false;
+                    var testPolygon = districts[iPolygon];
 
-                    for (int iPolygon = 0; iPolygon < unfinishedPolygons.Count; iPolygon++)
-                    {
-                        var testPolygon = unfinishedPolygons[iPolygon];
+                    if (testPolygon.Area > targetArea)
+                        continue; // don't merge into something else if it's already big enough
 
-                        if (district.MergeIfAdjacent(unfinishedPolygons[iPolygon]))
-                        {
-                            unfinishedPolygons.RemoveAt(iPolygon);
+                    var allAdjacent = districts
+                        .Where(p => p != testPolygon)
+                        .Select(p => new Tuple<PolygonF, AdjacencyInfo>(p, testPolygon.GetAdjacencyInfo(p)))
+                        .Where(adjaceny => adjaceny.Item2 != null);
 
-                            if (district.Area >= targetArea)
-                            {
-                                keepAdding = false;
-                                break;
-                            }
+                    var longestEdgeAjacent = allAdjacent
+                        .Where(a => a.Item1.Area < targetArea) // don't merge into something that's already big enough
+                        .OrderByDescending(a => a.Item2.Length)
+                        .FirstOrDefault();
 
-                            keepAdding = true;
-                        }
-                    }
+                    if (longestEdgeAjacent == null)
+                        continue;
 
-                } while (keepAdding);
+                    longestEdgeAjacent.Item1.MergeWith(testPolygon, longestEdgeAjacent.Item2);
 
-                districts.Add(district);
-            }
+                    districts.RemoveAt(iPolygon);
+                    iPolygon--;
 
+                    keepAdding = true;
+                }
+
+            } while (keepAdding);
+
+            /*
             // once we have districts, merge any very small districts (< 1/50 total?) onto anything with even one adjacent vertex
             for (int iDistrict = 0; iDistrict < districts.Count; iDistrict++)
             {
@@ -125,7 +128,7 @@ namespace MapViewer
                     }
                 }
             }
-
+            */
             var image = DrawTerrain(generator, landmasses, internalPoints, districts);
             image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
         }

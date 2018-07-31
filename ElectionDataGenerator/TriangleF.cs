@@ -1,8 +1,9 @@
-﻿using System.Drawing;
+﻿using System.Collections.Generic;
+using System.Drawing;
 
 namespace ElectionDataGenerator
 {
-    public struct TriangleF
+    public class TriangleF
     {
         public TriangleF(PointF v1, PointF v2, PointF v3)
         {
@@ -18,19 +19,7 @@ namespace ElectionDataGenerator
         public float CircumRadiusSq { get; }
         public PointF Centroid { get; }
 
-        public static bool operator ==(TriangleF left, TriangleF right)
-        {
-            return left.Vertices[0] == right.Vertices[0]
-                && left.Vertices[1] == right.Vertices[1]
-                && left.Vertices[2] == right.Vertices[2];
-        }
-
-        public static bool operator !=(TriangleF left, TriangleF right)
-        {
-            return left.Vertices[0] != right.Vertices[0]
-                || left.Vertices[1] != right.Vertices[1]
-                || left.Vertices[2] != right.Vertices[2];
-        }
+        public List<TriangleF> AdjacentTriangles { get; } = new List<TriangleF>();
 
         private static PointF GetCircumCenter(PointF a, PointF b, PointF c)
         {
@@ -47,6 +36,28 @@ namespace ElectionDataGenerator
             ) / d;
 
             return new PointF(x, y);
+        }
+
+        public bool IsAdjacent(TriangleF other)
+        {
+            PointF v1 = Vertices[0], v2 = Vertices[1], v3 = Vertices[0];
+            PointF o1 = other.Vertices[0], o2 = other.Vertices[1], o3 = other.Vertices[0];
+
+            bool alreadyMatchedOne = v1 == o1 || v1 == o2 || v1 == o3;
+
+            if (v2 == o1 || v2 == o2 || v2 == o3)
+            {
+                if (alreadyMatchedOne)
+                    return true;
+
+                alreadyMatchedOne = true;
+            }
+
+
+            if (alreadyMatchedOne && (v3 == o1 || v3 == o2 || v3 == o3))
+                return true;
+
+            return false;
         }
     }
 }

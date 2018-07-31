@@ -294,7 +294,7 @@ namespace ElectionDataGenerator
             return districts;
         }
 
-        public List<TriangleF> DelauneyTriangulation(List<PointF> points)
+        public List<TriangleF> GetDelauneyTriangulation(List<PointF> points)
         {
             var enclosingTriangle = new TriangleF(
                 new PointF(0, 0),
@@ -385,6 +385,25 @@ namespace ElectionDataGenerator
             }
 
             return triangulation;
+        }
+
+        public void LinkAdjacentTriangles(List<TriangleF> triangles)
+        {
+            for (int iLinking = triangles.Count - 1; iLinking >= 1; iLinking--)
+            { 
+                var linkingTriangle = triangles[iLinking];
+
+                for (int iOther = iLinking - 1; iOther >= 0; iOther--)
+                {
+                    var otherTriangle = triangles[iOther];
+
+                    if (linkingTriangle.IsAdjacent(otherTriangle))
+                    {
+                        linkingTriangle.AdjacentTriangles.Add(otherTriangle);
+                        otherTriangle.AdjacentTriangles.Add(linkingTriangle);
+                    }
+                }
+            }
         }
         
         public static List<Tuple<PointF, PointF>> GetDistinctLines(List<TriangleF> triangulation)

@@ -39,7 +39,7 @@ namespace ElectionDataGenerator
             }
         }
 
-        public bool IsAdjacent(PolygonF other)
+        public AdjacencyInfo GetAdjacencyInfo(PolygonF other)
         {
             // if any two consecutive points from this match any two consecutive points on that, either way round, they're adjacent
             for (var i = Vertices.Count - 1; i >= 0; i--)
@@ -50,137 +50,120 @@ namespace ElectionDataGenerator
                 if (otherIndex == -1)
                     continue;
 
+                var sharedVertices = new List<PointF>();
+                sharedVertices.Add(firstVertex);
+
+                // The two polygons share a vertex. See if they share 2 or more adjacent vertices!
                 int testIndex1 = WrapIndex(otherIndex, other.Vertices.Count, false);
                 int testIndex2 = WrapIndex(otherIndex, other.Vertices.Count, true);
+                
+                bool localGoingForwards = false, otherGoingForwards = false;
+                int localIndex = WrapIndex(i, Vertices.Count, localGoingForwards);
+                var secondVertex = Vertices[localIndex];
+                if (other.Vertices[testIndex1] == secondVertex)
+                {
+                    sharedVertices.Add(secondVertex);
+                    otherIndex = testIndex1;
+                    otherGoingForwards = false;
+                }
+                else if (other.Vertices[testIndex2] == secondVertex)
+                {
+                    sharedVertices.Add(secondVertex);
+                    otherIndex = testIndex2;
+                    otherGoingForwards = true;
+                }
+                else
+                {
+                    localGoingForwards = true;
+                    localIndex = WrapIndex(i, Vertices.Count, localGoingForwards);
+                    secondVertex = Vertices[localIndex];
+                    if (other.Vertices[testIndex1] == secondVertex)
+                    {
+                        sharedVertices.Add(secondVertex);
+                        otherIndex = testIndex2;
+                        otherGoingForwards = false;
+                    }
+                    else if (other.Vertices[testIndex2] == secondVertex)
+                    {
+                        sharedVertices.Add(secondVertex);
+                        otherIndex = testIndex2;
+                        otherGoingForwards = true;
+                    }
+                    else
+                        continue;
+                }
 
-                var secondVertex = Vertices[WrapIndex(i, Vertices.Count, false)];
-                if (other.Vertices[testIndex1] == secondVertex || other.Vertices[testIndex2] == secondVertex)
-                    return true;
+                // These may share more than just two vertices, so keep going as long as they keep being shared.
+                while (true)
+                {
+                    localIndex = WrapIndex(localIndex, Vertices.Count, localGoingForwards);
+                    otherIndex = WrapIndex(otherIndex, other.Vertices.Count, otherGoingForwards);
 
-                secondVertex = Vertices[WrapIndex(i, Vertices.Count, true)];
-                if (other.Vertices[testIndex1] == secondVertex || other.Vertices[testIndex2] == secondVertex)
-                    return true;
+                    var localVertex = Vertices[localIndex];
+                    if (localVertex != other.Vertices[otherIndex])
+                        break;
+
+                    sharedVertices.Add(localVertex);
+                }
+
+                return new AdjacencyInfo(sharedVertices);
             }
 
-            return false;
+            return null;
         }
 
-        public bool MergeIfAdjacent(PolygonF other)
+        private static void CompareAdjacency(PolygonF polygon, AdjacencyInfo adjacencyInfo, out int startIndex, out int endIndex, out bool forward)
         {
-            // TODO: if THREE (or more?) vertices in a row are shared with this one, use the first and last of those,
-            // and actually remove the intervening ones from this shape
+            startIndex = polygon.Vertices.IndexOf(adjacencyInfo.Vertices[0]);
+            var index2 = polygon.Vertices.IndexOf(adjacencyInfo.Vertices[1]);
 
-            int localIndex1 = 0, localIndex2 = 0, otherIndex1 = 0, otherIndex2 = 0;
-            bool reverseOther = false, foundAny = false;
+            endIndex = adjacencyInfo.Vertices.Length > 2
+                ? polygon.Vertices.IndexOf(adjacencyInfo.Vertices[adjacencyInfo.Vertices.Length - 1])
+                : index2;
 
-            // if any two consecutive points from this match any two consecutive points on that, either way round, they're adjacent
-            for (localIndex1 = Vertices.Count - 1; localIndex1 >= 0; localIndex1--)
+            forward = Math.Abs(index2 - startIndex) == 1 ? startIndex < index2 : startIndex > index2;
+        }
+
+        private static int RemoveMidPoints(PolygonF polygon, int startIndexExclusive, int endIndexExclusive, bool forward)
+        {
+            if (!forward)
             {
-                var firstVertex = Vertices[localIndex1];
-
-                otherIndex1 = other.Vertices.IndexOf(firstVertex);
-                if (otherIndex1 == -1)
-                    continue;
-
-                localIndex2 = WrapIndex(localIndex1, Vertices.Count, false);
-                var secondVertex = Vertices[localIndex2];
-
-                otherIndex2 = WrapIndex(otherIndex1, other.Vertices.Count, false);
-                if (other.Vertices[otherIndex2] == secondVertex)
-                {
-                    reverseOther = true;
-                    foundAny = true;
-                    break;
-                }
-
-                otherIndex2 = WrapIndex(otherIndex1, other.Vertices.Count, true);
-                if (other.Vertices[otherIndex2] == secondVertex)
-                {
-                    reverseOther = false;
-                    foundAny = true;
-                    break;
-                }
-
-
-                localIndex2 = WrapIndex(localIndex1, Vertices.Count, true);
-                secondVertex = Vertices[localIndex2];
-
-                otherIndex2 = WrapIndex(otherIndex1, other.Vertices.Count, false);
-                if (other.Vertices[otherIndex2] == secondVertex)
-                {
-                    reverseOther = false;
-                    foundAny = true;
-                    break;
-                }
-
-                otherIndex2 = WrapIndex(otherIndex1, other.Vertices.Count, true);
-                if (other.Vertices[otherIndex2] == secondVertex)
-                {
-                    reverseOther = true;
-                    foundAny = true;
-                    break;
-                }
+                var tmp = endIndexExclusive;
+                endIndexExclusive = startIndexExclusive;
+                startIndexExclusive = tmp;
             }
 
-            if (!foundAny)
-                return false;
-
-            Area += other.Area;
-
-            if (localIndex2 < localIndex1)
+            if (startIndexExclusive < endIndexExclusive)
             {
-                var tmp = localIndex1;
-                localIndex1 = localIndex2;
-                localIndex2 = tmp;
-            }
-
-            int insertIndex = localIndex2 == localIndex1 + 1 ? localIndex2 : localIndex1;
-
-            // for triangles, doens't matter order or anything, there's only one vertex:
-            // 0 & 2, want to insert 1
-            // 0 & 1, want to insert 2
-            // 1 & 2, want to insert 0
-
-            // for quadrilaterals, given the following:
-            // 0 & 1, insert 2 & 3
-            // 1 & 2, insert 3 & 0
-            // 2 & 3, insert 0 & 1
-            // 3 & 0, insert 1 & 2
-
-            // 1 & 0, insert 3 & 2
-            // 2 & 1, insert 0 & 3
-            // 3 & 2, insert 1 & 0
-            // 0 & 3, insert 2 & 1
-
-            // is it safe to just swap them? idk
-            if (otherIndex1 > otherIndex2)
-            {
-                var tmp = otherIndex1;
-                otherIndex1 = otherIndex2;
-                otherIndex2 = tmp;
-            }
-
-            IEnumerable<PointF> otherPoints;
-
-            if (otherIndex1 == otherIndex2 - 1)
-            {
-                otherPoints = other.Vertices.Skip(otherIndex2 + 1)
-                    .Concat(other.Vertices.Take(otherIndex1));
+                polygon.Vertices.RemoveRange(startIndexExclusive + 1, endIndexExclusive - startIndexExclusive - 1);
+                return startIndexExclusive + 1;
             }
             else
             {
-                // if the above swap is OK, they must be the first and last ones
-                otherPoints = other.Vertices.Skip(1).Take(other.Vertices.Count - 2);
+                polygon.Vertices.RemoveRange(startIndexExclusive + 1, polygon.Vertices.Count - startIndexExclusive - 1);
+                polygon.Vertices.RemoveRange(0, endIndexExclusive);
+                return 0;
             }
+        }
 
-            if (reverseOther)
-            {
-                otherPoints = otherPoints.Reverse();
-            }
+        public void MergeWith(PolygonF otherPolygon, AdjacencyInfo adjacencyInfo)
+        {
+            CompareAdjacency(this, adjacencyInfo, out int localStartIndex, out int localEndIndex, out bool localForward);
+            CompareAdjacency(otherPolygon, adjacencyInfo, out int otherStartIndex, out int otherEndIndex, out bool otherForward);
 
-            Vertices.InsertRange(insertIndex, otherPoints);
+            // remove any "mid" points in the array of shared adjacent edge points from this polygon
+            int insertIndex = RemoveMidPoints(this, localStartIndex, localEndIndex, localForward);
 
-            return true;
+            // remove ALL points in the array from the other polygon
+            otherStartIndex = WrapIndex(otherStartIndex, otherPolygon.Vertices.Count, !otherForward);
+            otherEndIndex = WrapIndex(otherEndIndex, otherPolygon.Vertices.Count, otherForward);
+            RemoveMidPoints(otherPolygon, otherStartIndex, otherEndIndex, otherForward);
+
+            // add all remaining vertices from the other polgyon, reversing them if necessary
+            if (localForward != otherForward)
+                otherPolygon.Vertices.Reverse();
+
+            Vertices.InsertRange(insertIndex, otherPolygon.Vertices);
         }
     }
 }
