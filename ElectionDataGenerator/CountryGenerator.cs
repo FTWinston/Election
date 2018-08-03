@@ -52,11 +52,6 @@ namespace ElectionDataGenerator
         public int Width { get; }
         public int Height { get; }
 
-        public float CenterX { get; }
-        public float CenterY { get; }
-        public float EllipseWidth { get; }
-        public float EllipseHeight { get; }
-
         private List<GraphicsPath> Landmasses { get; set; }
 
         private PerlinNoise TerrainNoiseX { get; }
@@ -68,12 +63,6 @@ namespace ElectionDataGenerator
 
             Width = Random.Next(7, 11) * 100;
             Height = Random.Next(7, 11) * 100;
-
-            CenterX = Width / 2f;
-            CenterY = Height / 2f;
-
-            EllipseWidth = Width * 0.75f;
-            EllipseHeight = Height * 0.75f;
 
             TerrainNoiseX = new PerlinNoise(Random.Next(), 4);
             TerrainNoiseY = new PerlinNoise(Random.Next(), 4);
@@ -94,15 +83,18 @@ namespace ElectionDataGenerator
             var mainland = new List<PointF>();
             landmasses.Add(mainland);
 
-            var prevPoint = new PointF(CenterX, CenterY);
+            var prevPoint = new PointF(Width / 2f, Height / 2f);
+
+            float ellipseWidth = Width * 0.75f;
+            float ellipseHeight = Height * 0.75f;
 
             int step = 0;
             for (float angle = (float)Math.PI * 2; angle > 0; angle -= 0.01f /* roughly 500 steps */)
             {
                 step++;
 
-                float ellipseX = CenterX + (float)Math.Cos(angle) * EllipseWidth / 2;
-                float ellipseY = CenterY + (float)Math.Sin(angle) * EllipseHeight / 2;
+                float ellipseX = Width / 2f + (float)Math.Cos(angle) * ellipseWidth / 2;
+                float ellipseY = Height / 2f + (float)Math.Sin(angle) * ellipseHeight / 2;
 
                 float placeX = ellipseX + amplitude * TerrainNoiseX.GetValue(ellipseX * frequency, ellipseY * frequency);
                 float placeY = ellipseY + amplitude * TerrainNoiseY.GetValue(ellipseX * frequency, ellipseY * frequency);
@@ -268,8 +260,8 @@ namespace ElectionDataGenerator
         {
             var districts = new List<PointF>();
 
-            int xStart = Width / 10, yStart = Height / 10;
-            int xRange = Width * 8 / 10, yRange = Height * 8 / 10;
+            float xStart = Width / 10, yStart = Height / 10;
+            float xRange = Width * 8 / 10, yRange = Height * 8 / 10;
 
             for (int i=0; i<numDistricts; i++)
             {
@@ -278,7 +270,10 @@ namespace ElectionDataGenerator
 
                 do
                 {
-                    test = new PointF(Random.Next(xRange) + xStart, Random.Next(yRange) + yStart);
+                    test = new PointF(
+                        Width * 0.8f * Random.NextFloat() + Width * 0.1f,
+                        Height * 0.8f * Random.NextFloat() + Height * 0.1f
+                    );
                     
                     foreach (var landmass in Landmasses)
                         if (landmass.IsVisible(test))

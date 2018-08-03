@@ -15,5 +15,10 @@ namespace ElectionDataGenerator
             return (p1.X - p2.X) * (p1.X - p2.X)
                  + (p1.Y - p2.Y) * (p1.Y - p2.Y);
         }
+
+        public static float NextFloat(this Random random)
+        {
+            return (float)random.NextDouble();
+        }
     }
 }

@@ -155,9 +155,8 @@ namespace MapViewer
             Graphics g = Graphics.FromImage(image);
 
             // draw rectangles on background to make the bounds clear
-            var brush = new SolidBrush(Color.Gray);
-            g.FillRectangle(brush, 0, 0, generator.CenterX, generator.CenterY);
-            g.FillRectangle(brush, generator.CenterX, generator.CenterY, generator.CenterX, generator.CenterY);
+            var brush = new SolidBrush(Color.DarkBlue);
+            g.FillRectangle(brush, 0, 0, generator.Width, generator.Height);
 
             /*
             // draw the terrain outline
@@ -177,7 +176,7 @@ namespace MapViewer
                 var path = new GraphicsPath();
                 path.AddLines(polygon.Vertices.ToArray());
 
-                brush = new SolidBrush(Color.FromArgb(0, 64 + colors.Next(192), 64 + colors.Next(192)));
+                brush = new SolidBrush(Color.FromArgb(64 + colors.Next(192), 64 + colors.Next(192), 0));
                 g.FillPath(brush, path);
             }
 
