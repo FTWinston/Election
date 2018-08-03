@@ -198,6 +198,16 @@ namespace ElectionDataGenerator
 
         public void MergeWith(PolygonF otherPolygon, AdjacencyInfo adjacencyInfo)
         {
+            if (Area == 0)
+            {
+                Vertices.Clear();
+                Vertices.AddRange(otherPolygon.Vertices);
+                Area = otherPolygon.Area;
+                return;
+            }
+
+            if (otherPolygon.Area == 0)
+                return;
             Area += otherPolygon.Area;
 
             if (adjacencyInfo.Vertices.Length == otherPolygon.Vertices.Count)
@@ -214,7 +224,7 @@ namespace ElectionDataGenerator
                     Vertices.Remove(vertex);
                 return;
             }
-            else if (adjacencyInfo.Vertices.Length == otherPolygon.Vertices.Count)
+            else if (adjacencyInfo.Vertices.Length == Vertices.Count)
             {
                 // This polygon is entirely contained the other one one.
                 // If it's fully wrapped, remove all its vertices, otherwise remove all but the first and last adjacent vertices.

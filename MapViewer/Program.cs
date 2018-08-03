@@ -171,10 +171,13 @@ namespace MapViewer
             // draw each region in a separate colour
             foreach (var polygon in polygons)
             {
+                if (polygon.Vertices.Count == 0)
+                    continue;
+
                 var path = new GraphicsPath();
                 path.AddLines(polygon.Vertices.ToArray());
 
-                brush = new SolidBrush(Color.FromArgb(64 + colors.Next(192), 64 + colors.Next(192), 64 + colors.Next(192)));
+                brush = new SolidBrush(Color.FromArgb(0, 64 + colors.Next(192), 64 + colors.Next(192)));
                 g.FillPath(brush, path);
             }
 
