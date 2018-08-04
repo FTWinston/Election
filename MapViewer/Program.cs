@@ -155,15 +155,8 @@ namespace MapViewer
             Graphics g = Graphics.FromImage(image);
 
             // draw rectangles on background to make the bounds clear
-            var brush = new SolidBrush(Color.DarkBlue);
+            var brush = new SolidBrush(Color.Blue);
             g.FillRectangle(brush, 0, 0, generator.Width, generator.Height);
-
-            /*
-            // draw the terrain outline
-            var pen = new Pen(Color.LightGray, 5);
-            foreach (var island in landmasses)
-                g.DrawPath(pen, island);
-            */
 
             Random colors = new Random();
 

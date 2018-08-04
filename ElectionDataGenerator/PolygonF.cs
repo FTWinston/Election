@@ -42,51 +42,52 @@ namespace ElectionDataGenerator
         public AdjacencyInfo GetAdjacencyInfo(PolygonF other)
         {
             // if any two consecutive points from this match any two consecutive points on that, either way round, they're adjacent
-            for (var i = Vertices.Count - 1; i >= 0; i--)
+            for (var startLocalIndex = Vertices.Count - 1; startLocalIndex >= 0; startLocalIndex--)
             {
-                var firstVertex = Vertices[i];
+                var firstVertex = Vertices[startLocalIndex];
 
-                var otherIndex = other.Vertices.IndexOf(firstVertex);
-                if (otherIndex == -1)
+                var testOtherIndex = other.Vertices.IndexOf(firstVertex);
+                if (testOtherIndex == -1)
                     continue;
 
+                var startOtherIndex = testOtherIndex;
                 var sharedVertices = new List<PointF>();
                 sharedVertices.Add(firstVertex);
 
                 // The two polygons share a vertex. See if they share 2 or more adjacent vertices!
-                int testIndex1 = WrapIndex(otherIndex, other.Vertices.Count, false);
-                int testIndex2 = WrapIndex(otherIndex, other.Vertices.Count, true);
+                int testIndex1 = WrapIndex(testOtherIndex, other.Vertices.Count, false);
+                int testIndex2 = WrapIndex(testOtherIndex, other.Vertices.Count, true);
                 
                 bool localGoingForwards = false, otherGoingForwards = false;
-                int localIndex = WrapIndex(i, Vertices.Count, localGoingForwards);
-                var secondVertex = Vertices[localIndex];
+                int testLocalIndex = WrapIndex(startLocalIndex, Vertices.Count, localGoingForwards);
+                var secondVertex = Vertices[testLocalIndex];
                 if (other.Vertices[testIndex1] == secondVertex)
                 {
                     sharedVertices.Add(secondVertex);
-                    otherIndex = testIndex1;
+                    testOtherIndex = testIndex1;
                     otherGoingForwards = false;
                 }
                 else if (other.Vertices[testIndex2] == secondVertex)
                 {
                     sharedVertices.Add(secondVertex);
-                    otherIndex = testIndex2;
+                    testOtherIndex = testIndex2;
                     otherGoingForwards = true;
                 }
                 else
                 {
                     localGoingForwards = true;
-                    localIndex = WrapIndex(i, Vertices.Count, localGoingForwards);
-                    secondVertex = Vertices[localIndex];
+                    testLocalIndex = WrapIndex(startLocalIndex, Vertices.Count, localGoingForwards);
+                    secondVertex = Vertices[testLocalIndex];
                     if (other.Vertices[testIndex1] == secondVertex)
                     {
                         sharedVertices.Add(secondVertex);
-                        otherIndex = testIndex2;
+                        testOtherIndex = testIndex2;
                         otherGoingForwards = false;
                     }
                     else if (other.Vertices[testIndex2] == secondVertex)
                     {
                         sharedVertices.Add(secondVertex);
-                        otherIndex = testIndex2;
+                        testOtherIndex = testIndex2;
                         otherGoingForwards = true;
                     }
                     else
@@ -96,14 +97,38 @@ namespace ElectionDataGenerator
                 // These may share more than just two vertices, so keep going as long as they keep being shared.
                 while (true)
                 {
-                    localIndex = WrapIndex(localIndex, Vertices.Count, localGoingForwards);
-                    otherIndex = WrapIndex(otherIndex, other.Vertices.Count, otherGoingForwards);
+                    testLocalIndex = WrapIndex(testLocalIndex, Vertices.Count, localGoingForwards);
+                    testOtherIndex = WrapIndex(testOtherIndex, other.Vertices.Count, otherGoingForwards);
 
-                    var localVertex = Vertices[localIndex];
-                    if (localVertex != other.Vertices[otherIndex])
+                    var localVertex = Vertices[testLocalIndex];
+                    if (localVertex != other.Vertices[testOtherIndex])
                         break;
 
                     sharedVertices.Add(localVertex);
+                }
+
+                var lastLocalIndex = testLocalIndex;
+                var lastOtherIndex = testOtherIndex;
+
+                // now try this same extension in the opposite direction too
+                testLocalIndex = startLocalIndex;
+                testOtherIndex = startOtherIndex;
+                localGoingForwards = !localGoingForwards;
+                otherGoingForwards = !otherGoingForwards;
+
+                while (true)
+                {
+                    testLocalIndex = WrapIndex(testLocalIndex, Vertices.Count, localGoingForwards);
+                    testOtherIndex = WrapIndex(testOtherIndex, other.Vertices.Count, otherGoingForwards);
+
+                    if (testLocalIndex == lastLocalIndex || testOtherIndex == lastOtherIndex)
+                        break;
+
+                    var localVertex = Vertices[testLocalIndex];
+                    if (localVertex != other.Vertices[testOtherIndex])
+                        break;
+
+                    sharedVertices.Insert(0, localVertex);
                 }
 
                 return new AdjacencyInfo(sharedVertices);
@@ -210,29 +235,27 @@ namespace ElectionDataGenerator
                 return;
             Area += otherPolygon.Area;
 
-            if (adjacencyInfo.Vertices.Length == otherPolygon.Vertices.Count)
+            if (adjacencyInfo.Vertices.Length >= otherPolygon.Vertices.Count)
             {
                 // Other polygon is entirely contained in this one.
                 // If it's fully wrapped, remove all its vertices, otherwise remove all but the first and last adjacent vertices.
                 bool firstLastEqual = adjacencyInfo.Vertices[0] == adjacencyInfo.Vertices[adjacencyInfo.Vertices.Length - 1];
-                var toRemove = firstLastEqual
-                    ? otherPolygon.Vertices
-                    : otherPolygon.Vertices.Skip(1)
-                        .Take(otherPolygon.Vertices.Count - 2);
+                var toRemove = adjacencyInfo.Vertices.Skip(1);
+                if (!firstLastEqual)
+                    toRemove = toRemove.Take(adjacencyInfo.Vertices.Length - 2);
 
                 foreach (var vertex in toRemove)
                     Vertices.Remove(vertex);
                 return;
             }
-            else if (adjacencyInfo.Vertices.Length == Vertices.Count)
+            else if (adjacencyInfo.Vertices.Length >= Vertices.Count)
             {
                 // This polygon is entirely contained the other one one.
                 // If it's fully wrapped, remove all its vertices, otherwise remove all but the first and last adjacent vertices.
                 bool firstLastEqual = adjacencyInfo.Vertices[0] == adjacencyInfo.Vertices[adjacencyInfo.Vertices.Length - 1];
-                var toRemove = firstLastEqual
-                    ? Vertices
-                    : Vertices.Skip(1)
-                        .Take(Vertices.Count - 2);
+                var toRemove = adjacencyInfo.Vertices.Skip(1);
+                if (!firstLastEqual)
+                    toRemove = toRemove.Take(adjacencyInfo.Vertices.Length - 2);
 
                 foreach (var vertex in toRemove)
                     otherPolygon.Vertices.Remove(vertex);
