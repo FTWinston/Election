@@ -53,6 +53,7 @@ namespace MapViewer
             var totalArea = districts.Sum(p => p.Area);
             var targetArea = totalArea / numDistricts;
             var minArea = targetArea / 5f;
+            var deleteThreshold = minArea / 15f;
 
             bool keepAdding;
 
@@ -93,6 +94,8 @@ namespace MapViewer
                     if (bestPolygon == null)
                         continue;
 
+                    //iStep++;
+
                     bestPolygon.MergeWith(testPolygon, bestAdjacency);
 
                     districts.RemoveAt(iPolygon);
@@ -102,9 +105,6 @@ namespace MapViewer
                 }
 
             } while (keepAdding);
-
-            var image = DrawTerrain(generator, landmasses, districts);
-            image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}_beforeTiny.png", ImageFormat.Png);
 
             // Once we have grown all the districts as far as we can without going beyond the limit,
             // merge any very small districts onto anything that's adjacent.
@@ -123,7 +123,10 @@ namespace MapViewer
                     if (polygon == testPolygon)
                         continue; // don't merge with self
 
+                    // TODO: why does reversing this change the results? this gets that one hole wrong, reversing it doesn't
                     var adjacency = testPolygon.GetAdjacencyInfo(polygon);
+                    var reverseAdjacency = polygon.GetAdjacencyInfo(testPolygon);
+
                     if (adjacency == null)
                         continue; // don't merge if not adjacent
 
@@ -143,9 +146,20 @@ namespace MapViewer
                 iPolygon--;
             }
 
-            // TODO: any remaining tiny island districts should be merged with the nearest district, even if they don't touch.
+            // TODO: any remaining small island districts should be merged with the nearest district, even if they don't touch.
 
-            image = DrawTerrain(generator, landmasses, districts);
+            // Remove any remaining extremly small districts, as they will be tiny islands
+            for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
+            {
+                var testPolygon = districts[iPolygon];
+                if (testPolygon.Area >= deleteThreshold)
+                    continue;
+
+                districts.RemoveAt(iPolygon);
+                iPolygon--;
+            }
+
+            var image = DrawTerrain(generator, landmasses, districts);
             image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
         }
 
