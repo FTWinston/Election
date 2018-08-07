@@ -123,9 +123,8 @@ namespace MapViewer
                     if (polygon == testPolygon)
                         continue; // don't merge with self
 
-                    // TODO: why does reversing this change the results? this gets that one hole wrong, reversing it doesn't
                     var adjacency = testPolygon.GetAdjacencyInfo(polygon);
-                    var reverseAdjacency = polygon.GetAdjacencyInfo(testPolygon);
+                    //var reverseAdjacency = polygon.GetAdjacencyInfo(testPolygon);
 
                     if (adjacency == null)
                         continue; // don't merge if not adjacent

@@ -46,31 +46,31 @@ namespace ElectionDataGenerator
             {
                 var firstVertex = Vertices[startLocalIndex];
 
-                var testOtherIndex = other.Vertices.IndexOf(firstVertex);
-                if (testOtherIndex == -1)
+                var otherIndex = other.Vertices.IndexOf(firstVertex);
+                if (otherIndex == -1)
                     continue;
 
-                var startOtherIndex = testOtherIndex;
+                var startOtherIndex = otherIndex;
                 var sharedVertices = new List<PointF>();
                 sharedVertices.Add(firstVertex);
 
                 // The two polygons share a vertex. See if they share 2 or more adjacent vertices!
-                int testIndex1 = WrapIndex(testOtherIndex, other.Vertices.Count, false);
-                int testIndex2 = WrapIndex(testOtherIndex, other.Vertices.Count, true);
+                int testOtherIndex1 = WrapIndex(otherIndex, other.Vertices.Count, false);
+                int testOtherIndex2 = WrapIndex(otherIndex, other.Vertices.Count, true);
                 
                 bool localGoingForwards = false, otherGoingForwards = false;
                 int testLocalIndex = WrapIndex(startLocalIndex, Vertices.Count, localGoingForwards);
                 var secondVertex = Vertices[testLocalIndex];
-                if (other.Vertices[testIndex1] == secondVertex)
+                if (other.Vertices[testOtherIndex1] == secondVertex)
                 {
                     sharedVertices.Add(secondVertex);
-                    testOtherIndex = testIndex1;
+                    otherIndex = testOtherIndex1;
                     otherGoingForwards = false;
                 }
-                else if (other.Vertices[testIndex2] == secondVertex)
+                else if (other.Vertices[testOtherIndex2] == secondVertex)
                 {
                     sharedVertices.Add(secondVertex);
-                    testOtherIndex = testIndex2;
+                    otherIndex = testOtherIndex2;
                     otherGoingForwards = true;
                 }
                 else
@@ -78,54 +78,56 @@ namespace ElectionDataGenerator
                     localGoingForwards = true;
                     testLocalIndex = WrapIndex(startLocalIndex, Vertices.Count, localGoingForwards);
                     secondVertex = Vertices[testLocalIndex];
-                    if (other.Vertices[testIndex1] == secondVertex)
+                    if (other.Vertices[testOtherIndex1] == secondVertex)
                     {
                         sharedVertices.Add(secondVertex);
-                        testOtherIndex = testIndex2;
+                        otherIndex = testOtherIndex1;
                         otherGoingForwards = false;
                     }
-                    else if (other.Vertices[testIndex2] == secondVertex)
+                    else if (other.Vertices[testOtherIndex2] == secondVertex)
                     {
                         sharedVertices.Add(secondVertex);
-                        testOtherIndex = testIndex2;
+                        otherIndex = testOtherIndex2;
                         otherGoingForwards = true;
                     }
                     else
                         continue;
                 }
 
+                var lastLocalIndex = testLocalIndex;
+                var lastOtherIndex = otherIndex;
+
                 // These may share more than just two vertices, so keep going as long as they keep being shared.
                 while (true)
                 {
                     testLocalIndex = WrapIndex(testLocalIndex, Vertices.Count, localGoingForwards);
-                    testOtherIndex = WrapIndex(testOtherIndex, other.Vertices.Count, otherGoingForwards);
+                    otherIndex = WrapIndex(otherIndex, other.Vertices.Count, otherGoingForwards);
 
                     var localVertex = Vertices[testLocalIndex];
-                    if (localVertex != other.Vertices[testOtherIndex])
+                    if (localVertex != other.Vertices[otherIndex])
                         break;
 
                     sharedVertices.Add(localVertex);
+                    lastLocalIndex = testLocalIndex;
+                    lastOtherIndex = otherIndex;
                 }
-
-                var lastLocalIndex = testLocalIndex;
-                var lastOtherIndex = testOtherIndex;
 
                 // now try this same extension in the opposite direction too
                 testLocalIndex = startLocalIndex;
-                testOtherIndex = startOtherIndex;
+                otherIndex = startOtherIndex;
                 localGoingForwards = !localGoingForwards;
                 otherGoingForwards = !otherGoingForwards;
 
                 while (true)
                 {
                     testLocalIndex = WrapIndex(testLocalIndex, Vertices.Count, localGoingForwards);
-                    testOtherIndex = WrapIndex(testOtherIndex, other.Vertices.Count, otherGoingForwards);
+                    otherIndex = WrapIndex(otherIndex, other.Vertices.Count, otherGoingForwards);
 
-                    if (testLocalIndex == lastLocalIndex || testOtherIndex == lastOtherIndex)
+                    if (testLocalIndex == lastLocalIndex && otherIndex == lastOtherIndex)
                         break;
 
                     var localVertex = Vertices[testLocalIndex];
-                    if (localVertex != other.Vertices[testOtherIndex])
+                    if (localVertex != other.Vertices[otherIndex])
                         break;
 
                     sharedVertices.Insert(0, localVertex);
