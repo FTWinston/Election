@@ -15,43 +15,64 @@ namespace MapViewer
             Random r = new Random();
             int seed = r.Next();
 
-            GenerateImage(seed, 1000, 100);
+            GenerateImage(seed, 5000, 500, 10);
             //Console.ReadKey();
         }
 
-        private static void GenerateImage(int seed, int numInternalPoints, int numDistricts)
+        private static void GenerateImage(int seed, int numInternalPoints, int numDistricts, int numRegions)
         {
-            Console.WriteLine($"Generating with seed {seed}: {numInternalPoints} points, {numDistricts} districts");
+            Console.WriteLine($"Generating with seed {seed}: {numInternalPoints} points, {numDistricts} districts in {numRegions} regions");
 
             var generator = new CountryGenerator(seed);
             List<PolygonF> districts = generator.GenerateTerrainDistricts(numInternalPoints, numDistricts);
 
-            var image = DrawTerrain(generator, districts);
+            List<List<PolygonF>> regions = generator.AllocateRegions(districts, numRegions);
+
+            var image = DrawTerrain(generator, regions);
             image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
         }
 
-        private static Image DrawTerrain(CountryGenerator generator, IEnumerable<PolygonF> polygons)
+        private static Image DrawTerrain(CountryGenerator generator, List<List<PolygonF>> regions)
         {
             var image = new Bitmap(generator.Width, generator.Height);
             Graphics g = Graphics.FromImage(image);
 
             // draw rectangles on background to make the bounds clear
-            var brush = new SolidBrush(Color.Blue);
+            var brush = new SolidBrush(Color.DarkBlue);
             g.FillRectangle(brush, 0, 0, generator.Width, generator.Height);
 
             Random colors = new Random();
 
-            // draw each region in a separate colour
-            foreach (var polygon in polygons)
+            // draw each region in a separate hue, evenly spaced
+            var hueStep = 240.0 / regions.Count;
+            var hue = 0.0;
+
+            foreach (var region in regions)
             {
-                if (polygon.Vertices.Count == 0)
-                    continue;
+                bool first = true;
+                foreach (var district in region)
+                {   
+                    var path = new GraphicsPath();
+                    path.AddLines(district.Vertices.Select(p => new System.Drawing.PointF(p.X, p.Y)).ToArray());
 
-                var path = new GraphicsPath();
-                path.AddLines(polygon.Vertices.Select(p => new System.Drawing.PointF(p.X, p.Y)).ToArray());
+                    // each district is a different color, with its region's hue
+                    var saturation = colors.NextDouble() * 60 + 90;
+                    var luminosity = colors.NextDouble() * 60 + 90;
 
-                brush = new SolidBrush(Color.FromArgb(64 + colors.Next(192), 64 + colors.Next(192), 0));
-                g.FillPath(brush, path);
+                    if (first)
+                    {
+                        first = false;
+                        saturation = 240;
+                        luminosity = 220;
+                    }
+
+                    var color = new HSLColor(hue, saturation, luminosity);
+
+                    brush = new SolidBrush(color);
+                    g.FillPath(brush, path);
+                }
+
+                hue += hueStep;
             }
 
             return image;

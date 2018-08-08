@@ -556,6 +556,39 @@ namespace ElectionDataGenerator
             // TODO: any remaining small island districts should be merged with the nearest district, even if they don't touch.
             return districts;
         }
+        
+        public List<List<PolygonF>> AllocateRegions(List<PolygonF> districts, int numRegions)
+        {
+            var regions = new List<List<PolygonF>>(numRegions);
+            Dictionary<PointF, int> regionCenters = new Dictionary<PointF, int>();
+
+            for (int iRegion = 0; iRegion < numRegions; iRegion++)
+            {
+                var region = new List<PolygonF>();
+                regions.Add(region);
+
+                // pick a random district to be the "seed" for each region
+                var iDistrict = Random.Next(districts.Count);
+                var seedDistrict = districts[iDistrict];
+                districts.RemoveAt(iDistrict);
+
+                region.Add(seedDistrict);
+                regionCenters.Add(seedDistrict.GetCenter(), iRegion);
+            }
+
+            // each remaining district should be added to the closest region
+            // TODO: want to endeavour to make regions have roughly equivalent populations. Allocate districts to regions with more thought!
+            foreach (var district in districts)
+            {
+                var center = district.GetCenter();
+
+                var closestCenter = center.GetClosest(regionCenters.Keys);
+                int iClosestRegion = regionCenters[closestCenter];
+                regions[iClosestRegion].Add(district);
+            }
+
+            return regions;
+        }
         #endregion
     }
 }

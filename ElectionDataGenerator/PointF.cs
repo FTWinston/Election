@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace ElectionDataGenerator
 {
@@ -22,6 +23,24 @@ namespace ElectionDataGenerator
         {
             return (X - other.X) * (X - other.X)
                  + (Y - other.Y) * (Y - other.Y);
+        }
+
+        internal PointF GetClosest(IEnumerable<PointF> points)
+        {
+            float bestDistance = float.MaxValue;
+            PointF bestPoint = null;
+
+            foreach (var point in points)
+            {
+                var distance = DistanceSqTo(point);
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    bestPoint = point;
+                }
+            }
+
+            return bestPoint;
         }
     }
 }

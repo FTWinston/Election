@@ -280,5 +280,31 @@ namespace ElectionDataGenerator
 
             Vertices.InsertRange(insertIndex, otherPolygon.Vertices);
         }
+
+        public PointF GetCenter()
+        {
+            float minX = float.MaxValue;
+            float maxX = float.MinValue;
+            float minY = float.MaxValue;
+            float maxY = float.MinValue;
+
+            foreach (var vertex in Vertices)
+            {
+                if (vertex.X < minX)
+                    minX = vertex.X;
+                if (vertex.X > maxX)
+                    maxX = vertex.X;
+
+                if (vertex.Y < minY)
+                    minY = vertex.Y;
+                if (vertex.Y > maxY)
+                    maxY = vertex.Y;
+            }
+
+            return new PointF(
+                (minX + maxX / 2),
+                (minY + maxY / 2)
+            );
+        }
     }
 }
