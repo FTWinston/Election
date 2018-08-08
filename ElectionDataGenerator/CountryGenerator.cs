@@ -67,11 +67,11 @@ namespace ElectionDataGenerator
             TerrainNoiseY = new PerlinNoise(Random.Next(), 4);
         }
 
-        public List<PolygonF> GenerateTerrainDistricts(int numInternalPoints, int numDistricts)
+        public List<DistrictGenerator> GenerateTerrainDistricts(int numInternalPoints, int numDistricts)
         {
             var landmasses = GenerateTerrainOutline();
             TriangleF[] triangles = TriangulateLand(landmasses, numInternalPoints);
-            List<PolygonF> districts = CombineTrianglesIntoDistricts(triangles, numDistricts);
+            List<DistrictGenerator> districts = CombineTrianglesIntoDistricts(triangles, numDistricts);
             return districts;
         }
 
@@ -274,9 +274,9 @@ namespace ElectionDataGenerator
             allPoints.AddRange(internalPoints);
 
             var triangles = GetDelauneyTriangulation(allPoints);
-            LinkAdjacentTriangles(triangles);
 
-            return triangles
+            // remove all triangles whose center isn't in any of the land masses
+            var landTriangles = triangles
                 .Where(t =>
                 {
                     foreach (var landmass in landmasses)
@@ -288,6 +288,9 @@ namespace ElectionDataGenerator
                     return false;
                 })
                 .ToArray();
+
+            LinkAdjacentTriangles(landTriangles);
+            return landTriangles;
         }
 
         private List<PointF> PlaceDistricts(int numDistricts)
@@ -422,7 +425,7 @@ namespace ElectionDataGenerator
             return distSq <= triangle.CircumRadiusSq;
         }
 
-        private void LinkAdjacentTriangles(List<TriangleF> triangles)
+        private void LinkAdjacentTriangles(IList<TriangleF> triangles)
         {
             for (int iLinking = triangles.Count - 1; iLinking >= 1; iLinking--)
             { 
@@ -441,13 +444,10 @@ namespace ElectionDataGenerator
             }
         }
 
-        private List<PolygonF> CombineTrianglesIntoDistricts(IList<TriangleF> triangles, int numDistricts)
+        private List<DistrictGenerator> CombineTrianglesIntoDistricts(IList<TriangleF> triangles, int numDistricts)
         {
-            // remove all triangles whose center isn't in any of the land masses, and convert the remainder to polygons
-            var districts = triangles
-                .Select(t => new PolygonF(t.Vertices))
-                .ToList();
-
+            List<DistrictGenerator> districts = CreateDistrictsWithAdjacency(triangles);
+            
             var totalArea = districts.Sum(p => p.Area);
             var targetArea = totalArea / numDistricts;
             var minArea = targetArea / 5f;
@@ -469,7 +469,7 @@ namespace ElectionDataGenerator
                         continue; // don't merge if it's already big enough
 
                     AdjacencyInfo bestAdjacency = null;
-                    PolygonF bestPolygon = null;
+                    DistrictGenerator bestPolygon = null;
 
                     foreach (var polygon in districts)
                     {
@@ -494,7 +494,7 @@ namespace ElectionDataGenerator
                     if (bestPolygon == null)
                         continue;
 
-                    bestPolygon.MergeWith(testPolygon, bestAdjacency);
+                    bestPolygon.MergeWithDistrict(testPolygon, bestAdjacency);
 
                     districts.RemoveAt(iPolygon);
                     iPolygon--;
@@ -514,7 +514,7 @@ namespace ElectionDataGenerator
 
                 // merge this district onto any adjacent one, if we can
                 AdjacencyInfo bestAdjacency = null;
-                PolygonF bestPolygon = null;
+                DistrictGenerator bestPolygon = null;
 
                 foreach (var polygon in districts)
                 {
@@ -536,7 +536,7 @@ namespace ElectionDataGenerator
                 if (bestPolygon == null)
                     continue;
 
-                bestPolygon.MergeWith(testPolygon, bestAdjacency);
+                bestPolygon.MergeWithDistrict(testPolygon, bestAdjacency);
 
                 districts.RemoveAt(iPolygon);
                 iPolygon--;
@@ -556,15 +556,43 @@ namespace ElectionDataGenerator
             // TODO: any remaining small island districts should be merged with the nearest district, even if they don't touch.
             return districts;
         }
-        
-        public List<List<PolygonF>> AllocateRegions(List<PolygonF> districts, int numRegions)
+
+        private static List<DistrictGenerator> CreateDistrictsWithAdjacency(IList<TriangleF> triangles)
         {
-            var regions = new List<List<PolygonF>>(numRegions);
+            // Prepare a list of the district for each triangle, and vice versa, so we can pass on adjacency information.
+            var trianglesFromDistricts = new Dictionary<DistrictGenerator, TriangleF>(triangles.Count);
+            var districtsFromTriangles = new Dictionary<TriangleF, DistrictGenerator>(triangles.Count);
+
+            foreach (var triangle in triangles)
+            {
+                var district = new DistrictGenerator(triangle.Vertices);
+                trianglesFromDistricts.Add(district, triangle);
+                districtsFromTriangles.Add(triangle, district);
+            }
+
+            foreach (var kvp in trianglesFromDistricts)
+            {
+                var district = kvp.Key;
+
+                var toAdd = kvp.Value.AdjacentTriangles
+                    .Select(t => districtsFromTriangles[t]);
+
+                foreach (var addDistrict in toAdd)
+                    district.AdjacentDistricts.Add(addDistrict);
+            }
+
+            return trianglesFromDistricts.Keys.ToList();
+        }
+        #endregion
+
+        public List<RegionGenerator> AllocateRegions(List<DistrictGenerator> districts, int numRegions)
+        {
+            var regions = new List<RegionGenerator>(numRegions);
             Dictionary<PointF, int> regionCenters = new Dictionary<PointF, int>();
 
             for (int iRegion = 0; iRegion < numRegions; iRegion++)
             {
-                var region = new List<PolygonF>();
+                var region = new RegionGenerator();
                 regions.Add(region);
 
                 // pick a random district to be the "seed" for each region
@@ -572,23 +600,58 @@ namespace ElectionDataGenerator
                 var seedDistrict = districts[iDistrict];
                 districts.RemoveAt(iDistrict);
 
-                region.Add(seedDistrict);
+                region.AddDistrict(seedDistrict);
                 regionCenters.Add(seedDistrict.GetCenter(), iRegion);
             }
 
             // each remaining district should be added to the closest region
-            // TODO: want to endeavour to make regions have roughly equivalent populations. Allocate districts to regions with more thought!
             foreach (var district in districts)
             {
                 var center = district.GetCenter();
 
                 var closestCenter = center.GetClosest(regionCenters.Keys);
                 int iClosestRegion = regionCenters[closestCenter];
-                regions[iClosestRegion].Add(district);
+                regions[iClosestRegion].AddDistrict(district);
+            }
+
+            // Now that districts have been allocated, consider swapping "border" districts to adjacent regions
+            // and see if that brings both swapped regions closer to the ideal area. (Eventually use population instead.)
+            var targetArea = districts.Sum(d => d.Area) / numRegions;
+            bool anyChange = true;
+
+            while (anyChange)
+            {
+                anyChange = false;
+                foreach (var district in districts)
+                {
+                    var triedRegions = new HashSet<RegionGenerator>();
+                    triedRegions.Add(district.Region);
+
+                    foreach (var adjacent in district.AdjacentDistricts)
+                    {
+                        var newRegion = adjacent.Region;
+                        if (triedRegions.Contains(newRegion))
+                            continue;
+
+                        // Try swapping this district to the other region, see if it helps.
+                        var changedOldRegionArea = district.Region.Area - district.Area;
+                        var changedNewRegionArea = newRegion.Area + district.Area;
+
+                        var oldDelta = (district.Region.Area - targetArea) * (district.Region.Area - targetArea) + (newRegion.Area - targetArea) * (newRegion.Area - targetArea);
+                        var newDelta = (changedOldRegionArea - targetArea) * (changedOldRegionArea - targetArea) + (changedNewRegionArea - targetArea) * (changedNewRegionArea - targetArea);
+
+                        if (oldDelta <= newDelta)
+                            continue;
+
+                        // OK this would help, so go for it
+                        district.Region.RemoveDistrict(district);
+                        newRegion.AddDistrict(district);
+                        anyChange = true;
+                    }
+                }
             }
 
             return regions;
         }
-        #endregion
     }
 }

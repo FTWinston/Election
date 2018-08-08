@@ -24,15 +24,15 @@ namespace MapViewer
             Console.WriteLine($"Generating with seed {seed}: {numInternalPoints} points, {numDistricts} districts in {numRegions} regions");
 
             var generator = new CountryGenerator(seed);
-            List<PolygonF> districts = generator.GenerateTerrainDistricts(numInternalPoints, numDistricts);
+            List<DistrictGenerator> districts = generator.GenerateTerrainDistricts(numInternalPoints, numDistricts);
 
-            List<List<PolygonF>> regions = generator.AllocateRegions(districts, numRegions);
+            List<RegionGenerator> regions = generator.AllocateRegions(districts, numRegions);
 
             var image = DrawTerrain(generator, regions);
             image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
         }
 
-        private static Image DrawTerrain(CountryGenerator generator, List<List<PolygonF>> regions)
+        private static Image DrawTerrain(CountryGenerator generator, List<RegionGenerator> regions)
         {
             var image = new Bitmap(generator.Width, generator.Height);
             Graphics g = Graphics.FromImage(image);
@@ -49,8 +49,7 @@ namespace MapViewer
 
             foreach (var region in regions)
             {
-                bool first = true;
-                foreach (var district in region)
+                foreach (var district in region.Districts)
                 {   
                     var path = new GraphicsPath();
                     path.AddLines(district.Vertices.Select(p => new System.Drawing.PointF(p.X, p.Y)).ToArray());
@@ -58,14 +57,6 @@ namespace MapViewer
                     // each district is a different color, with its region's hue
                     var saturation = colors.NextDouble() * 60 + 90;
                     var luminosity = colors.NextDouble() * 60 + 90;
-
-                    if (first)
-                    {
-                        first = false;
-                        saturation = 240;
-                        luminosity = 220;
-                    }
-
                     var color = new HSLColor(hue, saturation, luminosity);
 
                     brush = new SolidBrush(color);
