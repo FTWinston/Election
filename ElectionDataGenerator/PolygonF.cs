@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 
 namespace ElectionDataGenerator
@@ -9,11 +8,11 @@ namespace ElectionDataGenerator
     {
         public PolygonF(params PointF[] points)
         {
-            Vertices = new List<PointF>(points);
+            Vertices = new IndexOfList(points);
             Area = CalculateArea(Vertices);
         }
 
-        private static float CalculateArea(List<PointF> vertices)
+        private static float CalculateArea(IList<PointF> vertices)
         {
             // Add the first point as the last in order to close the figure and compute area properly.
             vertices.Add(vertices[0]);
@@ -24,7 +23,8 @@ namespace ElectionDataGenerator
             return area;
         }
 
-        public List<PointF> Vertices { get; }
+        public IndexOfList Vertices { get; }
+
         public float Area { get; private set; }
 
         private static int WrapIndex(int index, int numIndices, bool forward)
@@ -150,7 +150,7 @@ namespace ElectionDataGenerator
                 if (startIndex > 0)
                 {
                     // if the one vertex is repeated multiple times, find the closest copy
-                    var tmp1 = polygon.Vertices.LastIndexOf(adjacencyInfo.Vertices[1], startIndex - 1);
+                    var tmp1 = polygon.Vertices.IndexOf(adjacencyInfo.Vertices[1], startIndex - 1);
                     var tmp2 = polygon.Vertices.IndexOf(adjacencyInfo.Vertices[1], startIndex + 1);
 
                     if (tmp1 != -1)
@@ -206,7 +206,7 @@ namespace ElectionDataGenerator
             }
         }
 
-        private static void PrepareForMidPointRemoval(List<PointF> vertices, ref int index1, ref int index2)
+        private static void PrepareForMidPointRemoval(IndexOfList vertices, ref int index1, ref int index2)
         {
             // where we need to wrap around the bounds in forwards, we need to make the section being retained contiguous,
             // or the vertexes aren't added in the right order

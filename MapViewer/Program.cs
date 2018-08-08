@@ -48,7 +48,7 @@ namespace MapViewer
                     continue;
 
                 var path = new GraphicsPath();
-                path.AddLines(polygon.Vertices.ToArray());
+                path.AddLines(polygon.Vertices.Select(p => new System.Drawing.PointF(p.X, p.Y)).ToArray());
 
                 brush = new SolidBrush(Color.FromArgb(64 + colors.Next(192), 64 + colors.Next(192), 0));
                 g.FillPath(brush, path);

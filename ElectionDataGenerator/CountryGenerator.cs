@@ -1,7 +1,6 @@
 ﻿using ElectionData.Geography;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 
@@ -145,7 +144,7 @@ namespace ElectionDataGenerator
                     for (var i = types.Length - 1; i >= 0; i--)
                         types[i] = 1;
 
-                    return new GraphicsPath(points.ToArray(), types);
+                    return new GraphicsPath(points.Select(p => new System.Drawing.PointF(p.X, p.Y)).ToArray(), types);
                 })
                 .ToList();
 
@@ -268,6 +267,7 @@ namespace ElectionDataGenerator
         {
             var allPoints = landmasses
                 .SelectMany(l => l.PathPoints)
+                .Select(p => new PointF(p.X, p.Y))
                 .ToList();
 
             var internalPoints = PlaceDistricts(numInternalPoints);
@@ -280,8 +280,11 @@ namespace ElectionDataGenerator
                 .Where(t =>
                 {
                     foreach (var landmass in landmasses)
-                        if (landmass.IsVisible(t.Centroid))
+                    {
+                        var centroid = t.Centroid;
+                        if (landmass.IsVisible(centroid.X, centroid.Y))
                             return true;
+                    }
                     return false;
                 })
                 .ToArray();
@@ -307,7 +310,7 @@ namespace ElectionDataGenerator
                     );
                     
                     foreach (var landmass in Landmasses)
-                        if (landmass.IsVisible(test))
+                        if (landmass.IsVisible(test.X, test.Y))
                         {
                             inAny = true;
                             break;
