@@ -68,8 +68,16 @@ namespace ElectionDataGenerator
             TerrainNoiseY = new PerlinNoise(Random.Next(), 4);
         }
 
+        public List<PolygonF> GenerateTerrainDistricts(int numInternalPoints, int numDistricts)
+        {
+            var landmasses = GenerateTerrainOutline();
+            TriangleF[] triangles = TriangulateLand(landmasses, numInternalPoints);
+            List<PolygonF> districts = CombineTrianglesIntoDistricts(triangles, numDistricts);
+            return districts;
+        }
+
         #region terrain outline
-        public List<GraphicsPath> GenerateTerrain()
+        private List<GraphicsPath> GenerateTerrainOutline()
         {
             // travel around an ellipse, with noise applied to it
 
@@ -111,7 +119,6 @@ namespace ElectionDataGenerator
 
                     if (LineSegmentsCross(prevPoint, nextPoint, testStart, testEnd))
                     {
-
                         // Because we are ALWAYS working our way anticlockwise around the main landmass:
                         // "outties" always have the "older" line cross the "newer" one from left to right.
                         // "innies" always have the "older" line cross the "newer" one from right to left.
@@ -256,7 +263,31 @@ namespace ElectionDataGenerator
         }
         #endregion terrain outline
 
-        public List<PointF> PlaceDistricts(int numDistricts)
+        #region district generation
+        private TriangleF[] TriangulateLand(IList<GraphicsPath> landmasses, int numInternalPoints)
+        {
+            var allPoints = landmasses
+                .SelectMany(l => l.PathPoints)
+                .ToList();
+
+            var internalPoints = PlaceDistricts(numInternalPoints);
+            allPoints.AddRange(internalPoints);
+
+            var triangles = GetDelauneyTriangulation(allPoints);
+            LinkAdjacentTriangles(triangles);
+
+            return triangles
+                .Where(t =>
+                {
+                    foreach (var landmass in landmasses)
+                        if (landmass.IsVisible(t.Centroid))
+                            return true;
+                    return false;
+                })
+                .ToArray();
+        }
+
+        private List<PointF> PlaceDistricts(int numDistricts)
         {
             var districts = new List<PointF>();
 
@@ -289,7 +320,7 @@ namespace ElectionDataGenerator
             return districts;
         }
 
-        public List<TriangleF> GetDelauneyTriangulation(List<PointF> points)
+        private List<TriangleF> GetDelauneyTriangulation(List<PointF> points)
         {
             var enclosingTriangle = new TriangleF(
                 new PointF(0, 0),
@@ -382,7 +413,13 @@ namespace ElectionDataGenerator
             return triangulation;
         }
 
-        public void LinkAdjacentTriangles(List<TriangleF> triangles)
+        private bool InsideCircumcircle(PointF point, TriangleF triangle)
+        {
+            var distSq = point.DistanceSqTo(triangle.CircumCenter);
+            return distSq <= triangle.CircumRadiusSq;
+        }
+
+        private void LinkAdjacentTriangles(List<TriangleF> triangles)
         {
             for (int iLinking = triangles.Count - 1; iLinking >= 1; iLinking--)
             { 
@@ -400,75 +437,122 @@ namespace ElectionDataGenerator
                 }
             }
         }
-        
-        public static List<Tuple<PointF, PointF>> GetDistinctLines(List<TriangleF> triangulation)
+
+        private List<PolygonF> CombineTrianglesIntoDistricts(IList<TriangleF> triangles, int numDistricts)
         {
-            var links = new List<Tuple<PointF, PointF>>();
+            // remove all triangles whose center isn't in any of the land masses, and convert the remainder to polygons
+            var districts = triangles
+                .Select(t => new PolygonF(t.Vertices))
+                .ToList();
 
-            // convert triangles to UNIQUE lines
-            foreach (var triangle in triangulation)
+            var totalArea = districts.Sum(p => p.Area);
+            var targetArea = totalArea / numDistricts;
+            var minArea = targetArea / 5f;
+            var deleteThreshold = minArea / 15f;
+
+            bool keepAdding;
+
+            // each unfinished polygon should be merged onto the adjacent polygon that shares its longest edge
+            do
             {
-                PointF v0 = triangle.Vertices[0], v1 = triangle.Vertices[1], v2 = triangle.Vertices[2];
+                keepAdding = false;
 
-                bool firstDuplicate = false, secondDuplicate = false, thirdDuplicate = false;
-                foreach (var link in links)
+                for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
                 {
-                    if (link.Item1 == v0)
+                    var testPolygon = districts[iPolygon];
+
+                    // TODO: instead of using area, use population? Don't want them too small, though!
+                    if (testPolygon.Area > targetArea)
+                        continue; // don't merge if it's already big enough
+
+                    AdjacencyInfo bestAdjacency = null;
+                    PolygonF bestPolygon = null;
+
+                    foreach (var polygon in districts)
                     {
-                        if (link.Item2 == v1)
-                        {
-                            firstDuplicate = true;
-                        }
-                        else if (link.Item2 == v2)
-                        {
-                            thirdDuplicate = true;
-                        }
+                        if (polygon == testPolygon)
+                            continue; // don't merge with self
+
+                        // TODO: consider merging if it prevents a "long thing triangle" sticking into another district. How?
+                        if (polygon.Area > targetArea)
+                            continue; // don't merge if target is already big enough
+
+                        var adjacency = testPolygon.GetAdjacencyInfo(polygon);
+                        if (adjacency == null)
+                            continue; // don't merge if not adjacent
+
+                        if (bestAdjacency != null && adjacency.Length < bestAdjacency.Length)
+                            continue; // don't merge if we already have a polygon we share longer edge(s) with
+
+                        bestAdjacency = adjacency;
+                        bestPolygon = polygon;
                     }
-                    else if (link.Item1 == v1)
-                    {
-                        if (link.Item2 == v0)
-                        {
-                            firstDuplicate = true;
-                        }
-                        else if (link.Item2 == v2)
-                        {
-                            secondDuplicate = true;
-                        }
-                    }
-                    else if (link.Item1 == v2)
-                    {
-                        if (link.Item2 == v0)
-                        {
-                            thirdDuplicate = true;
-                        }
-                        else if (link.Item2 == v1)
-                        {
-                            secondDuplicate = true;
-                        }
-                    }
+
+                    if (bestPolygon == null)
+                        continue;
+
+                    bestPolygon.MergeWith(testPolygon, bestAdjacency);
+
+                    districts.RemoveAt(iPolygon);
+                    iPolygon--;
+
+                    keepAdding = true;
                 }
 
-                if (!firstDuplicate)
+            } while (keepAdding);
+
+            // Once we have grown all the districts as far as we can without going beyond the limit,
+            // merge any very small districts onto anything that's adjacent.
+            for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
+            {
+                var testPolygon = districts[iPolygon];
+                if (testPolygon.Area >= minArea)
+                    continue;
+
+                // merge this district onto any adjacent one, if we can
+                AdjacencyInfo bestAdjacency = null;
+                PolygonF bestPolygon = null;
+
+                foreach (var polygon in districts)
                 {
-                    links.Add(new Tuple<PointF, PointF>(v0, v1));
+                    if (polygon == testPolygon)
+                        continue; // don't merge with self
+
+                    var adjacency = testPolygon.GetAdjacencyInfo(polygon);
+
+                    if (adjacency == null)
+                        continue; // don't merge if not adjacent
+
+                    if (bestAdjacency != null && adjacency.Length < bestAdjacency.Length)
+                        continue; // don't merge if we already have a polygon we share longer edge(s) with
+
+                    bestAdjacency = adjacency;
+                    bestPolygon = polygon;
                 }
-                if (!secondDuplicate)
-                {
-                    links.Add(new Tuple<PointF, PointF>(v1, v2));
-                }
-                if (!thirdDuplicate)
-                {
-                    links.Add(new Tuple<PointF, PointF>(v2, v0));
-                }
+
+                if (bestPolygon == null)
+                    continue;
+
+                bestPolygon.MergeWith(testPolygon, bestAdjacency);
+
+                districts.RemoveAt(iPolygon);
+                iPolygon--;
             }
 
-            return links;
-        }
+            // Remove any remaining extremly small districts, as they will be tiny islands
+            for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
+            {
+                var testPolygon = districts[iPolygon];
+                if (testPolygon.Area >= deleteThreshold)
+                    continue;
 
-        private bool InsideCircumcircle(PointF point, TriangleF triangle)
-        {
-            var distSq = point.DistanceSqTo(triangle.CircumCenter);
-            return distSq <= triangle.CircumRadiusSq;
+                districts.RemoveAt(iPolygon);
+                iPolygon--;
+            }
+
+            // TODO: any remaining small island districts should be merged with the nearest district, even if they don't touch.
+            return districts;
         }
+        #endregion
     }
 }

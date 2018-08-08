@@ -180,30 +180,13 @@ namespace ElectionDataGenerator
         {
             if (forward)
             {
-                // TODO: refactor this "almost" duplication
                 if (startIndexExclusive < endIndexExclusive - 1)
-                {
-                    // where we need to wrap around the bounds in forwards, we need to make the section being retained contiguous,
-                    // or the vertexes aren't added in the right order
-                    polygon.Vertices.AddRange(polygon.Vertices.Take(startIndexExclusive + 1));
-                    polygon.Vertices.RemoveRange(0, startIndexExclusive + 1);
-
-                    endIndexExclusive -= startIndexExclusive + 1;
-                    startIndexExclusive = polygon.Vertices.Count - 1;
-                }
+                    PrepareForMidPointRemoval(polygon.Vertices, ref startIndexExclusive, ref endIndexExclusive);
             }
             else
             {
                 if (startIndexExclusive > endIndexExclusive + 1)
-                {
-                    // where we need to wrap around the bounds in reverse, we need to make the section being retained contiguous,
-                    // or the vertexes aren't added in the right order
-                    polygon.Vertices.AddRange(polygon.Vertices.Take(endIndexExclusive + 1));
-                    polygon.Vertices.RemoveRange(0, endIndexExclusive + 1);
-
-                    startIndexExclusive -= endIndexExclusive + 1;
-                    endIndexExclusive = polygon.Vertices.Count - 1;
-                }
+                    PrepareForMidPointRemoval(polygon.Vertices, ref endIndexExclusive, ref startIndexExclusive);
 
                 var tmp = endIndexExclusive;
                 endIndexExclusive = startIndexExclusive;
@@ -223,6 +206,17 @@ namespace ElectionDataGenerator
             }
         }
 
+        private static void PrepareForMidPointRemoval(List<PointF> vertices, ref int index1, ref int index2)
+        {
+            // where we need to wrap around the bounds in forwards, we need to make the section being retained contiguous,
+            // or the vertexes aren't added in the right order
+            vertices.AddRange(vertices.Take(index1 + 1));
+            vertices.RemoveRange(0, index1 + 1);
+
+            index2 -= index1 + 1;
+            index1 = vertices.Count - 1;
+        }
+
         public void MergeWith(PolygonF otherPolygon, AdjacencyInfo adjacencyInfo)
         {
             if (Area == 0)
@@ -235,6 +229,7 @@ namespace ElectionDataGenerator
 
             if (otherPolygon.Area == 0)
                 return;
+
             Area += otherPolygon.Area;
 
             if (adjacencyInfo.Vertices.Length >= otherPolygon.Vertices.Count)
