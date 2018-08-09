@@ -506,8 +506,8 @@ namespace ElectionDataGenerator
                     if (!targetFilter(polygon))
                         continue;
 
-                    if (!testPolygon.AdjacentDistricts.Contains(polygon))
-                        continue; // filter out non-adjacent districts quickly
+                    //if (!testPolygon.AdjacentDistricts.Contains(polygon))
+                        //continue; // filter out non-adjacent districts quickly
 
                     var adjacency = testPolygon.GetAdjacencyInfo(polygon);
                     if (adjacency == null)
@@ -601,6 +601,9 @@ namespace ElectionDataGenerator
             var districts = regions.SelectMany(r => r.Districts).ToArray();
             var targetArea = districts.Sum(d => d.Area) / regions.Count;
             bool anyChange = true;
+
+            // TODO: rather than trying all at a time, do them in waves of all eligible "edge cells".
+            // And should we do one region at a time?
 
             while (anyChange)
             {
