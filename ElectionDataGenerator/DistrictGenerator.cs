@@ -20,7 +20,15 @@ namespace ElectionDataGenerator
         {
             MergeWith(other, adjacency);
 
-            AdjacentDistricts.Remove(other);
+            foreach (var yetAnother in other.AdjacentDistricts)
+            {
+                yetAnother.AdjacentDistricts.Remove(other);
+
+                if (yetAnother != this && !yetAnother.AdjacentDistricts.Contains(this))
+                {
+                    yetAnother.AdjacentDistricts.Add(this);
+                }
+            }
 
             var toAdd = other.AdjacentDistricts
                 .Where(d => d != this && !AdjacentDistricts.Contains(d));

@@ -1,6 +1,7 @@
 ﻿using ElectionDataGenerator;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -14,9 +15,16 @@ namespace MapViewer
         {
             Random r = new Random();
             int seed = r.Next();
+            seed = 1914506072;
+
+            var timer = new Stopwatch();
+            timer.Start();
 
             GenerateImage(seed, 5000, 500, 10);
-            //Console.ReadKey();
+
+            timer.Stop();
+            Console.WriteLine(timer.Elapsed.TotalSeconds);
+            Console.ReadKey();
         }
 
         private static void GenerateImage(int seed, int numInternalPoints, int numDistricts, int numRegions)
@@ -29,7 +37,12 @@ namespace MapViewer
             List<RegionGenerator> regions = generator.AllocateRegions(districts, numRegions);
 
             var image = DrawTerrain(generator, regions);
-            image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
+            image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}_beforeEqualizing.png", ImageFormat.Png);
+
+            generator.EqualizeRegions(regions);
+
+            image = DrawTerrain(generator, regions);
+            image.Save($"generated_{seed}_{numInternalPoints}_{numDistricts}_afterEqualizing.png", ImageFormat.Png);
         }
 
         private static Image DrawTerrain(CountryGenerator generator, List<RegionGenerator> regions)

@@ -453,66 +453,48 @@ namespace ElectionDataGenerator
             var minArea = targetArea / 5f;
             var deleteThreshold = minArea / 15f;
 
-            bool keepAdding;
+            // don't merge if its already big enough // TODO: instead of using area, use population? Don't want them too small, though!
+            Func<DistrictGenerator, bool> belowTarget = d => d.Area < targetArea;
+            Func<DistrictGenerator, bool> belowMinimum = d => d.Area < targetArea;
 
-            // each unfinished polygon should be merged onto the adjacent polygon that shares its longest edge
-            do
-            {
-                keepAdding = false;
-
-                for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
-                {
-                    var testPolygon = districts[iPolygon];
-
-                    // TODO: instead of using area, use population? Don't want them too small, though!
-                    if (testPolygon.Area > targetArea)
-                        continue; // don't merge if it's already big enough
-
-                    AdjacencyInfo bestAdjacency = null;
-                    DistrictGenerator bestPolygon = null;
-
-                    foreach (var polygon in districts)
-                    {
-                        if (polygon == testPolygon)
-                            continue; // don't merge with self
-
-                        // TODO: consider merging if it prevents a "long thing triangle" sticking into another district. How?
-                        if (polygon.Area > targetArea)
-                            continue; // don't merge if target is already big enough
-
-                        var adjacency = testPolygon.GetAdjacencyInfo(polygon);
-                        if (adjacency == null)
-                            continue; // don't merge if not adjacent
-
-                        if (bestAdjacency != null && adjacency.Length < bestAdjacency.Length)
-                            continue; // don't merge if we already have a polygon we share longer edge(s) with
-
-                        bestAdjacency = adjacency;
-                        bestPolygon = polygon;
-                    }
-
-                    if (bestPolygon == null)
-                        continue;
-
-                    bestPolygon.MergeWithDistrict(testPolygon, bestAdjacency);
-
-                    districts.RemoveAt(iPolygon);
-                    iPolygon--;
-
-                    keepAdding = true;
-                }
-
-            } while (keepAdding);
+            while (MergeDistricts(districts, belowTarget, belowTarget))
+                ;
 
             // Once we have grown all the districts as far as we can without going beyond the limit,
             // merge any very small districts onto anything that's adjacent.
+            MergeDistricts(districts, belowMinimum, d => true);
+            
+            // Remove any remaining extremly small districts, as they will be tiny islands
             for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
             {
                 var testPolygon = districts[iPolygon];
-                if (testPolygon.Area >= minArea)
+                if (testPolygon.Area >= deleteThreshold)
                     continue;
 
-                // merge this district onto any adjacent one, if we can
+                foreach (var other in testPolygon.AdjacentDistricts)
+                    other.AdjacentDistricts.Remove(testPolygon);
+
+                districts.RemoveAt(iPolygon);
+                iPolygon--;
+            }
+
+            // TODO: any remaining small island districts should be merged with the nearest district, even if they don't touch.
+            return districts;
+        }
+
+        private bool MergeDistricts(List<DistrictGenerator> districts, Func<DistrictGenerator, bool> districtFilter, Func<DistrictGenerator, bool> targetFilter)
+        {
+            bool addedAny = false;
+
+            for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
+            {
+                var testPolygon = districts[iPolygon];
+
+                if (!districtFilter(testPolygon))
+                    continue;
+
+                // This polygon should be merged onto the adjacent polygon that shares its longest edge
+
                 AdjacencyInfo bestAdjacency = null;
                 DistrictGenerator bestPolygon = null;
 
@@ -521,8 +503,13 @@ namespace ElectionDataGenerator
                     if (polygon == testPolygon)
                         continue; // don't merge with self
 
-                    var adjacency = testPolygon.GetAdjacencyInfo(polygon);
+                    if (!targetFilter(polygon))
+                        continue;
 
+                    if (!testPolygon.AdjacentDistricts.Contains(polygon))
+                        continue; // filter out non-adjacent districts quickly
+
+                    var adjacency = testPolygon.GetAdjacencyInfo(polygon);
                     if (adjacency == null)
                         continue; // don't merge if not adjacent
 
@@ -540,21 +527,11 @@ namespace ElectionDataGenerator
 
                 districts.RemoveAt(iPolygon);
                 iPolygon--;
+
+                addedAny = true;
             }
 
-            // Remove any remaining extremly small districts, as they will be tiny islands
-            for (int iPolygon = 0; iPolygon < districts.Count; iPolygon++)
-            {
-                var testPolygon = districts[iPolygon];
-                if (testPolygon.Area >= deleteThreshold)
-                    continue;
-
-                districts.RemoveAt(iPolygon);
-                iPolygon--;
-            }
-
-            // TODO: any remaining small island districts should be merged with the nearest district, even if they don't touch.
-            return districts;
+            return addedAny;
         }
 
         private static List<DistrictGenerator> CreateDistrictsWithAdjacency(IList<TriangleF> triangles)
@@ -614,9 +591,15 @@ namespace ElectionDataGenerator
                 regions[iClosestRegion].AddDistrict(district);
             }
 
+            return regions;
+        }
+
+        public void EqualizeRegions(IList<RegionGenerator> regions)
+        {
             // Now that districts have been allocated, consider swapping "border" districts to adjacent regions
             // and see if that brings both swapped regions closer to the ideal area. (Eventually use population instead.)
-            var targetArea = districts.Sum(d => d.Area) / numRegions;
+            var districts = regions.SelectMany(r => r.Districts).ToArray();
+            var targetArea = districts.Sum(d => d.Area) / regions.Count;
             bool anyChange = true;
 
             while (anyChange)
@@ -650,8 +633,6 @@ namespace ElectionDataGenerator
                     }
                 }
             }
-
-            return regions;
         }
     }
 }
