@@ -602,25 +602,37 @@ namespace ElectionDataGenerator
             var targetArea = districts.Sum(d => d.Area) / regions.Count;
             bool anyChange = true;
 
-            // TODO: rather than trying all at a time, do them in waves of all eligible "edge cells".
-            // And should we do one region at a time?
+            // TODO: this still ends up with "wonky" shapes and bits being cut off.
+            // We need to indicate how happy a region is to gain/lose a given district, depending on factors like:
+            // * how close it is to the region nucleus
+            // * how many "steps" from its current location to the region nucleus
+            // * how many adjacent districts are part of that region
 
+            // Consider swapping districts into different regions, see if each swap would bring BOTH regions closer to the ideal.
+            // Rather than considering each district in every pass, only consider those that are "edges" at the start of the pass.
+            // And only consider one region at a time, so that districts are definitely still edges when we are considering them.
             while (anyChange)
             {
                 anyChange = false;
-                foreach (var district in districts)
-                {
-                    var triedRegions = new HashSet<RegionGenerator>();
-                    triedRegions.Add(district.Region);
 
-                    foreach (var adjacent in district.AdjacentDistricts)
+                foreach (var region in regions)
+                {
+                    Tuple<DistrictGenerator, RegionGenerator>[] possibleEdgeDistrictChanges = region.Districts
+                        .SelectMany(d => d.AdjacentDistricts
+                            .Where(a => a.Region != region)
+                            .Distinct()
+                            .Select(a => new Tuple<DistrictGenerator, RegionGenerator>(d, a.Region))
+                        )
+                        .ToArray(); // resolve this, as regions will be changed as we iterate
+
+                    foreach (var possibleChange in possibleEdgeDistrictChanges)
                     {
-                        var newRegion = adjacent.Region;
-                        if (triedRegions.Contains(newRegion))
-                            continue;
+                        var district = possibleChange.Item1;
+                        var oldRegion = district.Region;
+                        var newRegion = possibleChange.Item2;
 
                         // Try swapping this district to the other region, see if it helps.
-                        var changedOldRegionArea = district.Region.Area - district.Area;
+                        var changedOldRegionArea = oldRegion.Area - district.Area;
                         var changedNewRegionArea = newRegion.Area + district.Area;
 
                         var oldDelta = (district.Region.Area - targetArea) * (district.Region.Area - targetArea) + (newRegion.Area - targetArea) * (newRegion.Area - targetArea);
