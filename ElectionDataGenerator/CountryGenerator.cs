@@ -506,8 +506,8 @@ namespace ElectionDataGenerator
                     if (!targetFilter(polygon))
                         continue;
 
-                    //if (!testPolygon.AdjacentDistricts.Contains(polygon))
-                        //continue; // filter out non-adjacent districts quickly
+                    if (!testPolygon.AdjacentDistricts.Contains(polygon))
+                        continue; // filter out non-adjacent districts quickly
 
                     var adjacency = testPolygon.GetAdjacencyInfo(polygon);
                     if (adjacency == null)
@@ -550,12 +550,12 @@ namespace ElectionDataGenerator
             foreach (var kvp in trianglesFromDistricts)
             {
                 var district = kvp.Key;
+                var triangle = kvp.Value;
 
-                var toAdd = kvp.Value.AdjacentTriangles
+                var toAdd = triangle.AdjacentTriangles
                     .Select(t => districtsFromTriangles[t]);
 
-                foreach (var addDistrict in toAdd)
-                    district.AdjacentDistricts.Add(addDistrict);
+                district.AdjacentDistricts.UnionWith(toAdd);
             }
 
             return trianglesFromDistricts.Keys.ToList();

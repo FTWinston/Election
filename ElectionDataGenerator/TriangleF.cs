@@ -19,7 +19,7 @@ namespace ElectionDataGenerator
         public float CircumRadiusSq { get; }
         public PointF Centroid { get; }
 
-        public List<TriangleF> AdjacentTriangles { get; } = new List<TriangleF>();
+        public HashSet<TriangleF> AdjacentTriangles { get; } = new HashSet<TriangleF>();
 
         private static PointF GetCircumCenter(PointF a, PointF b, PointF c)
         {
@@ -40,8 +40,8 @@ namespace ElectionDataGenerator
 
         public bool IsAdjacent(TriangleF other)
         {
-            PointF v1 = Vertices[0], v2 = Vertices[1], v3 = Vertices[0];
-            PointF o1 = other.Vertices[0], o2 = other.Vertices[1], o3 = other.Vertices[0];
+            PointF v1 = Vertices[0], v2 = Vertices[1], v3 = Vertices[2];
+            PointF o1 = other.Vertices[0], o2 = other.Vertices[1], o3 = other.Vertices[2];
 
             bool alreadyMatchedOne = v1 == o1 || v1 == o2 || v1 == o3;
 
