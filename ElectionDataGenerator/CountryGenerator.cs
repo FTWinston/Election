@@ -594,6 +594,14 @@ namespace ElectionDataGenerator
             return regions;
         }
 
+        struct RegionChangeInfo
+        {
+            public DistrictGenerator District { get; set; }
+            public RegionGenerator ToRegion { get; set; }
+            public float NumOriginalAdjacent { get; set; }
+            public float NumDestinationAdjacent { get; set; }
+        }
+
         public void EqualizeRegions(IList<RegionGenerator> regions)
         {
             // Now that districts have been allocated, consider swapping "border" districts to adjacent regions
@@ -617,19 +625,26 @@ namespace ElectionDataGenerator
 
                 foreach (var region in regions)
                 {
-                    Tuple<DistrictGenerator, RegionGenerator>[] possibleEdgeDistrictChanges = region.Districts
+                    RegionChangeInfo[] possibleEdgeDistrictChanges = region.Districts
                         .SelectMany(d => d.AdjacentDistricts
                             .Where(a => a.Region != region)
                             .Distinct()
-                            .Select(a => new Tuple<DistrictGenerator, RegionGenerator>(d, a.Region))
+                            .Select(a => new RegionChangeInfo()
+                            {
+                                District = d,
+                                ToRegion = a.Region,
+                                NumOriginalAdjacent = d.AdjacentDistricts.Count(x => x.Region == d.Region),
+                                NumDestinationAdjacent = d.AdjacentDistricts.Count(x => x.Region == a.Region),
+                            })
                         )
+                        .OrderByDescending(info => info.NumOriginalAdjacent == 0 ? float.MaxValue : info.NumDestinationAdjacent / info.NumOriginalAdjacent)
                         .ToArray(); // resolve this, as regions will be changed as we iterate
 
                     foreach (var possibleChange in possibleEdgeDistrictChanges)
                     {
-                        var district = possibleChange.Item1;
+                        var district = possibleChange.District;
                         var oldRegion = district.Region;
-                        var newRegion = possibleChange.Item2;
+                        var newRegion = possibleChange.ToRegion;
 
                         // Try swapping this district to the other region, see if it helps.
                         var changedOldRegionArea = oldRegion.Area - district.Area;
