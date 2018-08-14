@@ -15,6 +15,7 @@ namespace ElectionDataGenerator
         public RegionGenerator Region { get; set; }
 
         public HashSet<DistrictGenerator> AdjacentDistricts { get; } = new HashSet<DistrictGenerator>();
+        public float PopulationDensity { get; set; }
 
         public void MergeWithDistrict(DistrictGenerator other, AdjacencyInfo adjacency)
         {

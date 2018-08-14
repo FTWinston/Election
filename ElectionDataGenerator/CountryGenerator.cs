@@ -53,18 +53,12 @@ namespace ElectionDataGenerator
 
         private List<GraphicsPath> Landmasses { get; set; }
 
-        private PerlinNoise TerrainNoiseX { get; }
-        private PerlinNoise TerrainNoiseY { get; }
-
         public CountryGenerator(int seed)
         {
             Random = new Random(seed);
 
             Width = Random.Next(7, 11) * 100;
             Height = Random.Next(7, 11) * 100;
-
-            TerrainNoiseX = new PerlinNoise(Random.Next(), 4);
-            TerrainNoiseY = new PerlinNoise(Random.Next(), 4);
         }
 
         public List<DistrictGenerator> GenerateTerrainDistricts(int numInternalPoints, int numDistricts)
@@ -80,10 +74,11 @@ namespace ElectionDataGenerator
         {
             // travel around an ellipse, with noise applied to it
 
-            // TODO: frequency & amplitude ought to be part of the noise itself, rather than separate to it
             // 0.001 to 0.01 seems to work best for noise frequency, 100 works well for noise amplitude
             float frequency = 0.005f;
             float amplitude = Math.Min(Width, Height) / 2;
+            var terrainNoiseX = new PerlinNoise(Random.Next(), frequency, amplitude, 4);
+            var terrainNoiseY = new PerlinNoise(Random.Next(), frequency, amplitude, 4);
 
             var landmasses = new List<List<PointF>>();
 
@@ -103,8 +98,8 @@ namespace ElectionDataGenerator
                 float ellipseX = Width / 2f + (float)Math.Cos(angle) * ellipseWidth / 2;
                 float ellipseY = Height / 2f + (float)Math.Sin(angle) * ellipseHeight / 2;
 
-                float placeX = ellipseX + amplitude * TerrainNoiseX.GetValue(ellipseX * frequency, ellipseY * frequency);
-                float placeY = ellipseY + amplitude * TerrainNoiseY.GetValue(ellipseX * frequency, ellipseY * frequency);
+                float placeX = ellipseX + terrainNoiseX.GetValue(ellipseX, ellipseY);
+                float placeY = ellipseY + terrainNoiseY.GetValue(ellipseX, ellipseY);
 
                 var nextPoint = new PointF(placeX, placeY);
 
@@ -562,6 +557,7 @@ namespace ElectionDataGenerator
         }
         #endregion
 
+        #region combining into regions
         public List<RegionGenerator> AllocateRegions(List<DistrictGenerator> districts, int numRegions)
         {
             var regions = new List<RegionGenerator>(numRegions);
@@ -591,6 +587,8 @@ namespace ElectionDataGenerator
                 regions[iClosestRegion].AddDistrict(district);
             }
 
+            EqualizeRegions(regions);
+
             return regions;
         }
 
@@ -610,15 +608,10 @@ namespace ElectionDataGenerator
             var targetArea = districts.Sum(d => d.Area) / regions.Count;
             bool anyChange = true;
 
-            // TODO: this still ends up with "wonky" shapes and bits being cut off.
-            // We need to indicate how happy a region is to gain/lose a given district, depending on factors like:
-            // * how close it is to the region nucleus
-            // * how many "steps" from its current location to the region nucleus
-            // * how many adjacent districts are part of that region
-
             // Consider swapping districts into different regions, see if each swap would bring BOTH regions closer to the ideal.
             // Rather than considering each district in every pass, only consider those that are "edges" at the start of the pass.
             // And only consider one region at a time, so that districts are definitely still edges when we are considering them.
+            // Additionally, consider the ones most surrounded by the target region first.
             while (anyChange)
             {
                 anyChange = false;
@@ -662,6 +655,20 @@ namespace ElectionDataGenerator
                         anyChange = true;
                     }
                 }
+            }
+        }
+        #endregion
+
+        public void ApplyDistrictProperties(List<DistrictGenerator> districts)
+        {
+            float frequency = 0.005f;
+            float amplitude = 255;
+            var populationNoise = new PerlinNoise(Random.Next(), frequency, amplitude, 4);
+
+            foreach (var district in districts)
+            {
+                var center = district.GetCenter();
+                district.PopulationDensity = populationNoise.GetValue(center.X, center.Y);
             }
         }
     }

@@ -5,24 +5,20 @@ namespace ElectionDataGenerator
     public class PerlinNoise
     {
         public int Octaves { get; }
+        public float Frequency { get; }
+        public float Amplitude { get; }
         public float Persistence { get; }
 
         private readonly int[] permutation;
-        private float MaxValue { get; }
+        private float NormalizedMaxValue { get; }
 
-        public PerlinNoise(int seed, int numOctaves = 5, float persistence = 0.5f)
+        public PerlinNoise(int seed, float frequency, float amplitude = 1, int numOctaves = 5, float persistence = 0.5f)
         {
+            Frequency = frequency;
+            Amplitude = amplitude;
             Octaves = numOctaves;
             Persistence = persistence;
-
-            // determine the maximum value for this number of octaves, so output can be scaled appropriately
-            float amplitude = 1;
-            MaxValue = 0;
-            for (int i = 0; i < Octaves; i++)
-            {
-                MaxValue += amplitude;
-                amplitude *= Persistence;
-            }
+            NormalizedMaxValue = DetermineNormalizedMaxValue(numOctaves, persistence);
 
             permutation = new int[257];
 
@@ -31,6 +27,21 @@ namespace ElectionDataGenerator
 
             Shuffle(permutation, seed, 256);
             permutation[256] = permutation[0]; // wrap the first/last value
+        }
+
+        private static float DetermineNormalizedMaxValue(int numOctaves, float persistence)
+        {
+            // determine the maximum value for this number of octaves, so output can be scaled appropriately
+            float amplitude = 1;
+            float maxValue = 0;
+
+            for (int i = 0; i < numOctaves; i++)
+            {
+                maxValue += amplitude;
+                amplitude *= persistence;
+            }
+
+            return maxValue;
         }
 
         private void Shuffle<T>(T[] array, int seed, int numValues = 0)
@@ -66,8 +77,8 @@ namespace ElectionDataGenerator
         public float GetValue(float x, float y)
         {
             float total = 0;
-            float frequency = 1;
-            float amplitude = 1;
+            float frequency = Frequency;
+            float amplitude = Amplitude;
 
             for (int i = 0; i < Octaves; i++)
             {
@@ -77,8 +88,8 @@ namespace ElectionDataGenerator
                 frequency *= 2;
             }
 
-            // normalize the result into the range 0 - 1
-            return total / MaxValue; 
+            // normalize the result into the range 0 - Amplitude
+            return total / NormalizedMaxValue; 
         }
 
         private static float Fade(float t)
