@@ -639,17 +639,28 @@ namespace ElectionDataGenerator
                         var oldRegion = district.Region;
                         var newRegion = possibleChange.ToRegion;
 
-                        // Try swapping this district to the other region, see if it helps.
-                        var changedOldRegionArea = oldRegion.Area - district.Area;
-                        var changedNewRegionArea = newRegion.Area + district.Area;
+                        bool shouldSwap = false;
 
-                        var oldDelta = (district.Region.Area - targetArea) * (district.Region.Area - targetArea) + (newRegion.Area - targetArea) * (newRegion.Area - targetArea);
-                        var newDelta = (changedOldRegionArea - targetArea) * (changedOldRegionArea - targetArea) + (changedNewRegionArea - targetArea) * (changedNewRegionArea - targetArea);
+                        // If a district doesn't touch any others from its region, it should be swapped even if this doesn't help the regions average out.
+                        if (possibleChange.NumOriginalAdjacent == 0 && possibleChange.NumDestinationAdjacent > 0)
+                            shouldSwap = true;
+                        else
+                        {
+                            // Try swapping this district to the other region, see if it helps the regions average out
+                            var changedOldRegionArea = oldRegion.Area - district.Area;
+                            var changedNewRegionArea = newRegion.Area + district.Area;
 
-                        if (oldDelta <= newDelta)
+                            var oldDelta = (district.Region.Area - targetArea) * (district.Region.Area - targetArea) + (newRegion.Area - targetArea) * (newRegion.Area - targetArea);
+                            var newDelta = (changedOldRegionArea - targetArea) * (changedOldRegionArea - targetArea) + (changedNewRegionArea - targetArea) * (changedNewRegionArea - targetArea);
+
+                            if (newDelta < oldDelta)
+                                shouldSwap = true;
+                        }
+
+                        if (!shouldSwap)
                             continue;
 
-                        // OK this would help, so go for it
+                        // OK, swap this district's region
                         district.Region.RemoveDistrict(district);
                         newRegion.AddDistrict(district);
                         anyChange = true;
