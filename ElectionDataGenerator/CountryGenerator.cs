@@ -672,15 +672,52 @@ namespace ElectionDataGenerator
 
         public void ApplyDistrictProperties(List<DistrictGenerator> districts)
         {
-            float frequency = 0.005f;
-            float amplitude = 255;
-            var populationNoise = new PerlinNoise(Random.Next(), frequency, amplitude, 4);
+            IList<IPositionalEffect> populationDensityEffects = GetPopulationDensityEffects(districts);
 
             foreach (var district in districts)
             {
                 var center = district.GetCenter();
-                district.PopulationDensity = populationNoise.GetValue(center.X, center.Y);
+                var density = populationDensityEffects.Sum(effect => effect.GetValue(center));
+
+                // Small islands and the ends of peninsulas have lower populations.
+                switch (district.AdjacentDistricts.Count)
+                {
+                    case 0:
+                        density *= 0.2f; break;
+                    case 1:
+                        density *= 0.6f; break;
+                    case 2:
+                        density *= 0.9f; break;
+                }
+
+                district.PopulationDensity = Math.Max(10, Math.Min(255, density));
             }
+        }
+
+        private IList<IPositionalEffect> GetPopulationDensityEffects(List<DistrictGenerator> districts)
+        {
+            // firstly, perlin noise
+            float frequency = 0.005f;
+            float amplitude = 255;
+            var populationNoise = new PerlinNoise(Random.Next(), frequency, amplitude, 4);
+
+            // additionally, a radial increase for a number of cities, with each one smaller than the last
+            int numCityIncreases = Random.Next(2, 9);
+            var effects = new IPositionalEffect[numCityIncreases + 1];
+
+            effects[0] = populationNoise;
+            float cityMagnitude = Random.NextFloat() * 225 + 100;
+            float cityFalloffDistance = Random.NextFloat() * Math.Max(Width, Height) * 0.5f + Math.Max(Width, Height) * 0.15f;
+
+            for (int i = 1; i <= numCityIncreases; i++)
+            {
+                var centerDistrict = districts[Random.Next(districts.Count)];
+                var cityFalloff = new RadialFalloff(centerDistrict.GetCenter(), cityMagnitude, cityFalloffDistance);
+                cityMagnitude *= 0.7f;
+                effects[i] = cityFalloff;
+            }
+
+            return effects;
         }
     }
 }

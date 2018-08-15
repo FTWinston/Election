@@ -24,7 +24,7 @@ namespace MapViewer
 
             timer.Stop();
             Console.WriteLine(timer.Elapsed.TotalSeconds);
-            Console.ReadKey();
+            //Console.ReadKey();
         }
 
         private static void GenerateImage(int seed, int numInternalPoints, int numDistricts, int numRegions)
