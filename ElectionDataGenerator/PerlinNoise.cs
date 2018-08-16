@@ -2,7 +2,7 @@
 
 namespace ElectionDataGenerator
 {
-    public class PerlinNoise : IPositionalEffect
+    public class PerlinNoise : PositionalEffect
     {
         public int Octaves { get; }
         public float Frequency { get; }
@@ -74,7 +74,7 @@ namespace ElectionDataGenerator
                            Lerp(u, Grad(permutation[A + 1], x, y - 1), Grad(permutation[B + 1], x - 1, y - 1)));
         }
 
-        public float GetValue(PointF point)
+        public override float GetValue(PointF point)
         {
             return GetValue(point.X, point.Y);
         }

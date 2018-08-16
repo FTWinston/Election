@@ -281,7 +281,16 @@ namespace ElectionDataGenerator
             Vertices.InsertRange(insertIndex, otherPolygon.Vertices);
         }
 
+        private PointF center = null;
         public PointF GetCenter()
+        {
+            if (center == null)
+                center = DetermineCenter();
+
+            return center;
+        }
+
+        private PointF DetermineCenter()
         {
             float minX = float.MaxValue;
             float maxX = float.MinValue;

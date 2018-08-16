@@ -672,29 +672,17 @@ namespace ElectionDataGenerator
 
         public void ApplyDistrictProperties(List<DistrictGenerator> districts)
         {
-            IList<IPositionalEffect> populationDensityEffects = GetPopulationDensityEffects(districts);
+            IList<DistrictEffect> populationDensityEffects = GetPopulationDensityEffects(districts);
 
             foreach (var district in districts)
             {
-                var center = district.GetCenter();
-                var density = populationDensityEffects.Sum(effect => effect.GetValue(center));
-
-                // Small islands and the ends of peninsulas have lower populations.
-                switch (district.AdjacentDistricts.Count)
-                {
-                    case 0:
-                        density *= 0.2f; break;
-                    case 1:
-                        density *= 0.6f; break;
-                    case 2:
-                        density *= 0.9f; break;
-                }
+                float density = populationDensityEffects.AccumulateValues(district);
 
                 district.PopulationDensity = Math.Max(10, Math.Min(255, density));
             }
         }
 
-        private IList<IPositionalEffect> GetPopulationDensityEffects(List<DistrictGenerator> districts)
+        private IList<DistrictEffect> GetPopulationDensityEffects(List<DistrictGenerator> districts)
         {
             // firstly, perlin noise
             float frequency = 0.005f;
@@ -703,7 +691,7 @@ namespace ElectionDataGenerator
 
             // additionally, a radial increase for a number of cities, with each one smaller than the last
             int numCityIncreases = Random.Next(2, 9);
-            var effects = new IPositionalEffect[numCityIncreases + 1];
+            var effects = new DistrictEffect[numCityIncreases + 2];
 
             effects[0] = populationNoise;
             float cityMagnitude = Random.NextFloat() * 225 + 100;
@@ -716,6 +704,22 @@ namespace ElectionDataGenerator
                 cityMagnitude *= 0.7f;
                 effects[i] = cityFalloff;
             }
+
+            effects[effects.Length - 1] = new CustomDistrictEffect((density, district) =>
+            {
+                // Small islands and the ends of peninsulas have lower populations.
+                switch (district.AdjacentDistricts.Count)
+                {
+                    case 0:
+                        return density * 0.2f;
+                    case 1:
+                        return density * 0.6f;
+                    case 2:
+                        return density * 0.9f;
+                    default:
+                        return density;
+                }
+            });
 
             return effects;
         }

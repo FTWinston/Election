@@ -2,7 +2,7 @@
 
 namespace ElectionDataGenerator
 {
-    public class RadialFalloff : IPositionalEffect
+    public class RadialFalloff : PositionalEffect
     {
         public PointF Center { get; }
         public float Magnitude { get; }
@@ -15,7 +15,7 @@ namespace ElectionDataGenerator
             FalloffDistance = falloffDist;
         }
 
-        public float GetValue(PointF point)
+        public override float GetValue(PointF point)
         {
             var distance = Center.DistanceTo(point);
             return Magnitude * Math.Max(1f - distance / FalloffDistance, 0);
