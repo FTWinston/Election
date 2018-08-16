@@ -605,7 +605,7 @@ namespace ElectionDataGenerator
             // Now that districts have been allocated, consider swapping "border" districts to adjacent regions
             // and see if that brings both swapped regions closer to the ideal area. (Eventually use population instead.)
             var districts = regions.SelectMany(r => r.Districts).ToArray();
-            var targetArea = districts.Sum(d => d.Area) / regions.Count;
+            float targetPopulation = districts.Sum(d => d.Population) / regions.Count;
             bool anyChange = true;
 
             // Consider swapping districts into different regions, see if each swap would bring BOTH regions closer to the ideal.
@@ -647,11 +647,13 @@ namespace ElectionDataGenerator
                         else
                         {
                             // Try swapping this district to the other region, see if it helps the regions average out
-                            var changedOldRegionArea = oldRegion.Area - district.Area;
-                            var changedNewRegionArea = newRegion.Area + district.Area;
+                            var changedOldRegionArea = oldRegion.Population - district.Population;
+                            var changedNewRegionArea = newRegion.Population + district.Population;
 
-                            var oldDelta = (district.Region.Area - targetArea) * (district.Region.Area - targetArea) + (newRegion.Area - targetArea) * (newRegion.Area - targetArea);
-                            var newDelta = (changedOldRegionArea - targetArea) * (changedOldRegionArea - targetArea) + (changedNewRegionArea - targetArea) * (changedNewRegionArea - targetArea);
+                            var oldDelta = (district.Region.Population - targetPopulation) * (district.Region.Population - targetPopulation)
+                                         + (newRegion.Population - targetPopulation) * (newRegion.Population - targetPopulation);
+                            var newDelta = (changedOldRegionArea - targetPopulation) * (changedOldRegionArea - targetPopulation)
+                                         + (changedNewRegionArea - targetPopulation) * (changedNewRegionArea - targetPopulation);
 
                             if (newDelta < oldDelta)
                                 shouldSwap = true;
@@ -670,6 +672,7 @@ namespace ElectionDataGenerator
         }
         #endregion
 
+        const float PixelsPerSquareKm = 1;
         public void ApplyDistrictProperties(List<DistrictGenerator> districts)
         {
             IList<DistrictEffect> populationDensityEffects = GetPopulationDensityEffects(districts);
@@ -678,7 +681,21 @@ namespace ElectionDataGenerator
             {
                 float density = populationDensityEffects.AccumulateValues(district);
 
-                district.PopulationDensity = Math.Max(10, Math.Min(255, density));
+                // 8 people per square km is the western isles.
+                // 42 people per square km is Stirling (district).
+                // 68 people per square km is South Lakeland.
+                // 150 people per square km is Cornwall.
+                // 179 people per square km is South Lanarkshire.
+                // 280 people per square km is Fife.
+                // 1500 per square km is London (greater metropolitan area average) or Sheffield.
+                // 3550 per square km is Glasgow
+                // 5000 per square km is Portsmouth, the highest district outside London.
+                // 15000 per square km is Tower Hamlets.
+
+                // The median for England as a whole is ~900.
+
+                district.PopulationDensity = Math.Max(5, Math.Min(15000, density));
+                district.Population = (int)Math.Round(district.PopulationDensity * district.Area / PixelsPerSquareKm);
             }
         }
 

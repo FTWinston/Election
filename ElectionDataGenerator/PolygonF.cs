@@ -311,8 +311,8 @@ namespace ElectionDataGenerator
             }
 
             return new PointF(
-                (minX + maxX / 2),
-                (minY + maxY / 2)
+                (minX + maxX) / 2,
+                (minY + maxY) / 2
             );
         }
     }

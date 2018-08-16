@@ -46,22 +46,44 @@ namespace MapViewer
                 hue += hueStep;
             }
 
-            var image = DrawTerrain(generator, regions, d => regionBrushes[d.Region]);
+            var font = new Font("Segoe UI", 6);
+            var textBrush = new SolidBrush(Color.Black);
+            var textFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+
+            var image = DrawTerrain(generator, regions, (district, g, path) =>
+            {
+                var brush = regionBrushes[district.Region];
+                g.FillPath(brush, path);
+
+                if (district != district.Region.Districts.First())
+                    return;
+
+                var center = district.GetCenter();
+                var totalPopulation = district.Region.Districts.Sum(d => d.Population);
+                g.DrawString(totalPopulation.ToString(), font, textBrush, center.X, center.Y, textFormat);
+            });
             image.Save($"regions_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
 
-            image = DrawTerrain(generator, regions, d => {
-                int popVal = (int)d.PopulationDensity + 128;
+
+            var maxPopulationDensity = districts.Max(d => d.PopulationDensity);
+            textBrush = new SolidBrush(Color.DarkRed);
+
+            image = DrawTerrain(generator, regions, (district, g, path) => {
+                int popVal = (int)(255 * district.PopulationDensity / maxPopulationDensity);
                 if (popVal < 0)
                     popVal = 0;
-                if (popVal > 255)
-                    popVal = 255;
+                
+                var brush = new SolidBrush(Color.FromArgb(popVal, popVal, popVal));
 
-                return new SolidBrush(Color.FromArgb(popVal, popVal, popVal));
+                g.FillPath(brush, path);
+
+                var center = district.GetCenter();
+                g.DrawString(district.Population.ToString(), font, textBrush, center.X, center.Y, textFormat);
             });
             image.Save($"popDensity_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
         }
 
-        private static Image DrawTerrain(CountryGenerator generator, List<RegionGenerator> regions, Func<DistrictGenerator, Brush> drawDistrict)
+        private static Image DrawTerrain(CountryGenerator generator, List<RegionGenerator> regions, Action<DistrictGenerator, Graphics, GraphicsPath> drawDistrict)
         {
             var image = new Bitmap(generator.Width, generator.Height);
             Graphics g = Graphics.FromImage(image);
@@ -77,8 +99,7 @@ namespace MapViewer
                     var path = new GraphicsPath();
                     path.AddLines(district.Vertices.Select(p => new System.Drawing.PointF(p.X, p.Y)).ToArray());
 
-                    brush = drawDistrict(district);
-                    g.FillPath(brush, path);
+                    drawDistrict(district, g, path);
                 }
             }
 
