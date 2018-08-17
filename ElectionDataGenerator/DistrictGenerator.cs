@@ -18,6 +18,15 @@ namespace ElectionDataGenerator
         public float PopulationDensity { get; set; }
         public int Population { get; set; }
 
+        // The following are demographic properties, each with a range of 0 - 1
+        public float Urbanisation { get; set; }
+        public float Coastalness { get; set; }
+        public float Wealth { get; set; }
+        public float Age { get; set; }
+        public float Education { get; set; }
+        public float Health { get; set; }
+        public float GeographicDivide { get; set; }
+
         public void MergeWithDistrict(DistrictGenerator other, AdjacencyInfo adjacency)
         {
             MergeWith(other, adjacency);

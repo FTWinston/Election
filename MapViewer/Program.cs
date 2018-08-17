@@ -36,6 +36,10 @@ namespace MapViewer
             generator.ApplyDistrictProperties(districts);
             List<RegionGenerator> regions = generator.AllocateRegions(districts, numRegions);
 
+            var captionFont = new Font("Segoe UI", 18);
+            var captionBrush = new SolidBrush(Color.White);
+            var captionFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near };
+
             var regionBrushes = new Dictionary<RegionGenerator, Brush>();
             var hueStep = 240.0 / regions.Count;
             var hue = 0.0;
@@ -46,26 +50,29 @@ namespace MapViewer
                 hue += hueStep;
             }
 
-            var font = new Font("Segoe UI", 6);
+            var font = new Font("Segoe UI", 18);
             var textBrush = new SolidBrush(Color.Black);
             var textFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
 
+            // draw region allocation
             var image = DrawTerrain(generator, regions, (district, g, path) =>
             {
                 var brush = regionBrushes[district.Region];
                 g.FillPath(brush, path);
-
-                if (district != district.Region.Districts.First())
-                    return;
-
-                var center = district.GetCenter();
-                var totalPopulation = district.Region.Districts.Sum(d => d.Population);
-                g.DrawString(totalPopulation.ToString(), font, textBrush, center.X, center.Y, textFormat);
+            }, (region, g) =>
+            {
+                var centerX = region.Districts.Sum(d => d.GetCenter().X) / region.Districts.Count;
+                var centerY = region.Districts.Sum(d => d.GetCenter().Y) / region.Districts.Count;
+                var totalPopulation = region.Districts.Sum(d => d.Population);
+                g.DrawString(totalPopulation.ToString(), font, textBrush, centerX, centerY, textFormat);
             });
-            image.Save($"regions_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
+            Graphics.FromImage(image).DrawString("Region (color) and region population (text)", captionFont, captionBrush, 0, 0, captionFormat);
+            image.Save($"{seed}_{numInternalPoints}_{numDistricts}_regions.png", ImageFormat.Png);
 
 
+            // draw population and population density
             var maxPopulationDensity = districts.Max(d => d.PopulationDensity);
+            font = new Font("Segoe UI", 6);
             textBrush = new SolidBrush(Color.DarkRed);
 
             image = DrawTerrain(generator, regions, (district, g, path) => {
@@ -79,16 +86,100 @@ namespace MapViewer
 
                 var center = district.GetCenter();
                 g.DrawString(district.Population.ToString(), font, textBrush, center.X, center.Y, textFormat);
-            });
-            image.Save($"popDensity_{seed}_{numInternalPoints}_{numDistricts}.png", ImageFormat.Png);
+            }, null);
+            Graphics.FromImage(image).DrawString("Population (text) and population density (color)", captionFont, captionBrush, 0, 0, captionFormat);
+            image.Save($"{seed}_{numInternalPoints}_{numDistricts}_population.png", ImageFormat.Png);
+
+            // draw urbanisation
+            image = DrawTerrain(generator, regions, (district, g, path) => {
+                int popVal = (int)(255 * district.Urbanisation);
+                if (popVal < 0)
+                    popVal = 0;
+
+                var brush = new SolidBrush(Color.FromArgb(popVal, popVal, popVal));
+                g.FillPath(brush, path);
+            }, null);
+            Graphics.FromImage(image).DrawString("Urbanisation", captionFont, captionBrush, 0, 0, captionFormat);
+            image.Save($"{seed}_{numInternalPoints}_{numDistricts}_urbanisation.png", ImageFormat.Png);
+
+            // draw coastalness
+            image = DrawTerrain(generator, regions, (district, g, path) => {
+                int popVal = (int)(255 * district.Coastalness);
+                if (popVal < 0)
+                    popVal = 0;
+
+                var brush = new SolidBrush(Color.FromArgb(popVal, popVal, popVal));
+                g.FillPath(brush, path);
+            }, null);
+            Graphics.FromImage(image).DrawString("Coastalness", captionFont, captionBrush, 0, 0, captionFormat);
+            image.Save($"{seed}_{numInternalPoints}_{numDistricts}_coastalness.png", ImageFormat.Png);
+
+            // draw wealth
+            image = DrawTerrain(generator, regions, (district, g, path) => {
+                int popVal = (int)(255 * district.Wealth);
+                if (popVal < 0)
+                    popVal = 0;
+
+                var brush = new SolidBrush(Color.FromArgb(popVal, popVal, popVal));
+                g.FillPath(brush, path);
+            }, null);
+            Graphics.FromImage(image).DrawString("Wealth", captionFont, captionBrush, 0, 0, captionFormat);
+            image.Save($"{seed}_{numInternalPoints}_{numDistricts}_wealth.png", ImageFormat.Png);
+
+            // draw age
+            image = DrawTerrain(generator, regions, (district, g, path) => {
+                int popVal = (int)(255 * district.Age);
+                if (popVal < 0)
+                    popVal = 0;
+
+                var brush = new SolidBrush(Color.FromArgb(popVal, popVal, popVal));
+                g.FillPath(brush, path);
+            }, null);
+            Graphics.FromImage(image).DrawString("Age", captionFont, captionBrush, 0, 0, captionFormat);
+            image.Save($"{seed}_{numInternalPoints}_{numDistricts}_age.png", ImageFormat.Png);
+
+            // draw education
+            image = DrawTerrain(generator, regions, (district, g, path) => {
+                int popVal = (int)(255 * district.Education);
+                if (popVal < 0)
+                    popVal = 0;
+
+                var brush = new SolidBrush(Color.FromArgb(popVal, popVal, popVal));
+                g.FillPath(brush, path);
+            }, null);
+            Graphics.FromImage(image).DrawString("Education", captionFont, captionBrush, 0, 0, captionFormat);
+            image.Save($"{seed}_{numInternalPoints}_{numDistricts}_education.png", ImageFormat.Png);
+
+            // draw health
+            image = DrawTerrain(generator, regions, (district, g, path) => {
+                int popVal = (int)(255 * district.Health);
+                if (popVal < 0)
+                    popVal = 0;
+
+                var brush = new SolidBrush(Color.FromArgb(popVal, popVal, popVal));
+                g.FillPath(brush, path);
+            }, null);
+            Graphics.FromImage(image).DrawString("Health", captionFont, captionBrush, 0, 0, captionFormat);
+            image.Save($"{seed}_{numInternalPoints}_{numDistricts}_health.png", ImageFormat.Png);
+
+            // draw geographic divide
+            image = DrawTerrain(generator, regions, (district, g, path) => {
+                int popVal = (int)(255 * district.GeographicDivide);
+                if (popVal < 0)
+                    popVal = 0;
+
+                var brush = new SolidBrush(Color.FromArgb(popVal, popVal, popVal));
+                g.FillPath(brush, path);
+            }, null);
+            Graphics.FromImage(image).DrawString("Geographic Divide", captionFont, captionBrush, 0, 0, captionFormat);
+            image.Save($"{seed}_{numInternalPoints}_{numDistricts}_geographic_divide.png", ImageFormat.Png);
         }
 
-        private static Image DrawTerrain(CountryGenerator generator, List<RegionGenerator> regions, Action<DistrictGenerator, Graphics, GraphicsPath> drawDistrict)
+        private static Image DrawTerrain(CountryGenerator generator, List<RegionGenerator> regions, Action<DistrictGenerator, Graphics, GraphicsPath> drawDistrict, Action<RegionGenerator, Graphics> drawRegion)
         {
             var image = new Bitmap(generator.Width, generator.Height);
             Graphics g = Graphics.FromImage(image);
 
-            // draw rectangles on background to make the bounds clear
             Brush brush = new SolidBrush(Color.DarkBlue);
             g.FillRectangle(brush, 0, 0, generator.Width, generator.Height);
 
@@ -101,6 +192,8 @@ namespace MapViewer
 
                     drawDistrict(district, g, path);
                 }
+
+                drawRegion?.Invoke(region, g);
             }
 
             return image;

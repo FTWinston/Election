@@ -672,15 +672,21 @@ namespace ElectionDataGenerator
         }
         #endregion
 
+        #region district properties
         const float PixelsPerSquareKm = 1;
         public void ApplyDistrictProperties(List<DistrictGenerator> districts)
         {
             IList<DistrictEffect> populationDensityEffects = GetPopulationDensityEffects(districts);
+            IList<DistrictEffect> urbanisationEffects = GetUrbanisationEffects(districts);
+            IList<DistrictEffect> coastalnessEffects = GetCoastalnessEffects(districts);
+            IList<DistrictEffect> wealthEffects = GetWealthEffects(districts);
+            IList<DistrictEffect> ageEffects = GetAgeEffects(districts);
+            IList<DistrictEffect> educationEffects = GetEducationEffects(districts);
+            IList<DistrictEffect> healthEffects = GetHealthEffects(districts);
+            IList<DistrictEffect> geographicDivideEffects = GetGeographicDivideEffects(districts);
 
             foreach (var district in districts)
             {
-                float density = populationDensityEffects.AccumulateValues(district);
-
                 // 8 people per square km is the western isles.
                 // 42 people per square km is Stirling (district).
                 // 68 people per square km is South Lakeland.
@@ -693,9 +699,16 @@ namespace ElectionDataGenerator
                 // 15000 per square km is Tower Hamlets.
 
                 // The median for England as a whole is ~900.
-
-                district.PopulationDensity = Math.Max(5, Math.Min(15000, density));
+                district.PopulationDensity = populationDensityEffects.AccumulateValues(district).Constrain(5, 15000);
                 district.Population = (int)Math.Round(district.PopulationDensity * district.Area / PixelsPerSquareKm);
+
+                district.Urbanisation = urbanisationEffects.AccumulateValues(district).Constrain(0, 1);
+                district.Coastalness = coastalnessEffects.AccumulateValues(district).Constrain(0, 1);
+                district.Wealth = wealthEffects.AccumulateValues(district).Constrain(0, 1);
+                district.Age = ageEffects.AccumulateValues(district).Constrain(0, 1);
+                district.Education = educationEffects.AccumulateValues(district).Constrain(0, 1);
+                district.Health = healthEffects.AccumulateValues(district).Constrain(0, 1);
+                district.GeographicDivide = geographicDivideEffects.AccumulateValues(district).Constrain(0, 1);
             }
         }
 
@@ -740,5 +753,74 @@ namespace ElectionDataGenerator
 
             return effects;
         }
+
+        private IList<DistrictEffect> GetUrbanisationEffects(List<DistrictGenerator> districts)
+        {
+            return new DistrictEffect[] {
+                new CustomDistrictEffect((val, district) => (district.PopulationDensity - 10f) / 12500f)
+            };
+        }
+
+        private IList<DistrictEffect> GetCoastalnessEffects(List<DistrictGenerator> districts)
+        {
+            return new DistrictEffect[] {
+                new CustomDistrictEffect((val, district) =>
+                {
+                    // TODO: need to detect actual adjacency to the sea! ... or distance from sea-adjacent districts
+                    switch (district.AdjacentDistricts.Count)
+                    {
+                        case 0:
+                            return 1;
+                        case 1:
+                            return 0.85f;
+                        case 2:
+                            return 0.5f;
+                        case 3:
+                            return 0.2f;
+                        default:
+                            return 0;
+                    }
+                })
+            };
+        }
+
+        private IList<DistrictEffect> GetWealthEffects(List<DistrictGenerator> districts)
+        {
+            return new DistrictEffect[] {
+                new PerlinNoise(Random.Next(), 0.05f, 1, 4),
+            };
+        }
+
+        private IList<DistrictEffect> GetHealthEffects(List<DistrictGenerator> districts)
+        {
+            return new DistrictEffect[] {
+                new PerlinNoise(Random.Next(), 0.01f, 1, 4),
+                new CustomDistrictEffect((val, district) => val - 0.5f * (1 - district.Urbanisation)), // urban areas are less healthy
+            };
+        }
+
+        private IList<DistrictEffect> GetAgeEffects(List<DistrictGenerator> districts)
+        {
+            return new DistrictEffect[] {
+                new PerlinNoise(Random.Next(), 0.005f, 1, 4),
+            };
+        }
+
+        private IList<DistrictEffect> GetEducationEffects(List<DistrictGenerator> districts)
+        {
+            return new DistrictEffect[] {
+                new PerlinNoise(Random.Next(), 0.005f, 1, 4),
+                new CustomDistrictEffect((val, district) => val + 0.2f * district.Urbanisation), // urban areas are better educated ... ?
+            };
+        }
+
+        private IList<DistrictEffect> GetGeographicDivideEffects(List<DistrictGenerator> districts)
+        {
+            return new DistrictEffect[] {
+                new PerlinNoise(Random.Next(), 0.05f, 0.2f, 4),
+                new CustomDistrictEffect((val, district) => val + 0.8f * district.GetCenter().Y / Height), // north-southness
+            };
+        }
+        #endregion
     }
 }

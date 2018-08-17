@@ -17,5 +17,10 @@ namespace ElectionDataGenerator
                 value = effect.AccumulateValue(value, district);
             return value;
         }
+
+        public static float Constrain(this float value, float min, float max)
+        {
+            return Math.Max(min, Math.Min(max, value));
+        }
     }
 }
